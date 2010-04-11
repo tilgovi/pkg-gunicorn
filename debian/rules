@@ -12,6 +12,10 @@ MANPAGES=$(patsubst %.pod,%.1, $(POD_MANPAGES))
 override_dh_auto_build: $(MANPAGES)
 	dh_auto_build
 
+override_dh_auto_install:
+	dh_auto_install
+	rm -f debian/gunicorn/usr/bin/gunicorn_paster
+
 override_dh_installexamples:
 	dh_installexamples
 	find debian/gunicorn/usr/share/doc/gunicorn/examples \
