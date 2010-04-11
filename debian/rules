@@ -6,11 +6,13 @@ MANPAGES=$(patsubst %.pod,%.1, $(POD_MANPAGES))
 %:
 	dh $@
 
-override_dh_clean:
-	find examples -executable -type f -print0 | xargs -0r chmod -x
-	dh_clean
 %.1: %.pod
 	pod2man $< $@
 
 override_dh_auto_build: $(MANPAGES)
 	dh_auto_build
+
+override_dh_installexamples:
+	dh_installexamples
+	find debian/gunicorn/usr/share/doc/gunicorn/examples \
+		-executable -type f -print0 | xargs -0r chmod -x
