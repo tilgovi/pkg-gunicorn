@@ -1,5 +1,5 @@
 gunicorn (0.7.1-1) UNRELEASED; urgency=low
 
-  * Initial release.
+  * Initial release. (Closes: #577107)
 
  -- Chris Lamb <lamby@debian.org>  Fri, 09 Apr 2010 16:25:32 +0100
