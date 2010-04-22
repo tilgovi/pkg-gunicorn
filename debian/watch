@@ -1,2 +1,2 @@
 version=3
-http://githubredir.debian.net/github/benoitc/gunicorn /(.*).tar.gz
+http://githubredir.debian.net/github/benoitc/gunicorn /(\d.*).tar.gz
