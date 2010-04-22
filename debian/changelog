@@ -1,6 +1,7 @@
 gunicorn (0.8.0-1) UNRELEASED; urgency=low
 
   * New upstream release.
+  * Update debian/watch to not pick up spurious help.tar.gz.
 
  -- Chris Lamb <lamby@debian.org>  Thu, 22 Apr 2010 21:44:11 +0100
 
