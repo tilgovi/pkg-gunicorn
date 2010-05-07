@@ -1,8 +1,8 @@
-gunicorn (0.8.0-3) UNRELEASED; urgency=low
+gunicorn (0.8.0-3) unstable; urgency=low
 
   * Re-enable gunicorn_paster entry point.
 
- -- Chris Lamb <lamby@debian.org>  Fri, 07 May 2010 18:16:03 +0100
+ -- Chris Lamb <lamby@debian.org>  Fri, 07 May 2010 18:18:37 +0100
 
 gunicorn (0.8.0-2) unstable; urgency=low
 
