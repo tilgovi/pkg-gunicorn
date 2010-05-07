@@ -19,7 +19,7 @@ Description: Event-based HTTP/WSGI server
  or sleepy applications. That is to say; behind a buffering front-end server
  such as nginx or lighttpd.
  .
-  * Optional support for Eventlet and Gevent to provide asynchronous
+  * Optional support for Eventlet, Tornado and Gevent to provide asynchronous
     long-polling ("Comet") connections.
   * Process management: Gunicorn reaps and restarts workers that die.
   * Easy integration with Django and Paster compatible applications (Pylons,
