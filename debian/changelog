@@ -3,6 +3,7 @@ gunicorn (0.8.0-2) UNRELEASED; urgency=low
   * Bump minimal Python requirement to 2.5. Thanks to Piotr Ożarowski.
     (Closes: #580679)
   * Add python-pkg-resources to Depends.
+  * Add python-gevent and python-tornado to Suggests.
 
  -- Chris Lamb <lamby@debian.org>  Fri, 07 May 2010 17:46:27 +0100
 
