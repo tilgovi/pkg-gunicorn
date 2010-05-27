@@ -1,8 +1,8 @@
-gunicorn (0.9.1-1) UNRELEASED; urgency=low
+gunicorn (0.9.1-1) unstable; urgency=low
 
   * New upstream release.
 
- -- Chris Lamb <lamby@debian.org>  Thu, 27 May 2010 23:47:41 +0100
+ -- Chris Lamb <lamby@debian.org>  Thu, 27 May 2010 23:51:25 +0100
 
 gunicorn (0.8.0-3) unstable; urgency=low
 
