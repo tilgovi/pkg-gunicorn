@@ -1,3 +1,9 @@
+gunicorn (0.9.1-1) UNRELEASED; urgency=low
+
+  * New upstream release.
+
+ -- Chris Lamb <lamby@debian.org>  Thu, 27 May 2010 23:47:41 +0100
+
 gunicorn (0.8.0-3) unstable; urgency=low
 
   * Re-enable gunicorn_paster entry point.
