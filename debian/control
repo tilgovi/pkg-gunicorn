@@ -12,7 +12,7 @@ Homepage: http://gunicorn.org/
 
 Package: gunicorn
 Architecture: all
-Depends: ${misc:Depends}, ${python:Depends}, python-pkg-resources
+Depends: ${misc:Depends}, ${python:Depends}, python-pkg-resources, python-setuptools
 Suggests: python-tornado, python-gevent, python-pastedeploy
 Description: Event-based HTTP/WSGI server
  Green Unicorn (gunicorn) is an HTTP/WSGI server designed to serve fast clients
