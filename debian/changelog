@@ -3,6 +3,7 @@ gunicorn (0.10.0-1) UNRELEASED; urgency=low
   * New upstream release.
   * Add python-setproctitle to Suggests. Thanks to Örjan Persson
     <orange@fobie.net>.
+  * Bump Standards-Version to 3.9.0.
 
  -- Chris Lamb <lamby@debian.org>  Fri, 16 Jul 2010 10:42:38 +0100
 
