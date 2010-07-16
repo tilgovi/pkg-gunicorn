@@ -1,9 +1,10 @@
-gunicorn (0.9.1-3) UNRELEASED; urgency=low
+gunicorn (0.10.0-1) UNRELEASED; urgency=low
 
+  * New upstream release.
   * Add python-setproctitle to Suggests. Thanks to Örjan Persson
     <orange@fobie.net>.
 
- -- Chris Lamb <lamby@debian.org>  Mon, 05 Jul 2010 10:18:00 +0100
+ -- Chris Lamb <lamby@debian.org>  Fri, 16 Jul 2010 10:42:38 +0100
 
 gunicorn (0.9.1-2) unstable; urgency=low
 
