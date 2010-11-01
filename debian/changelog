@@ -1,9 +1,9 @@
-gunicorn (0.11.2-1) UNRELEASED; urgency=low
+gunicorn (0.11.2-1) unstable; urgency=low
 
   * New upstream release.
   * Bump Standards-Version to 3.9.1.
 
- -- Chris Lamb <lamby@debian.org>  Mon, 01 Nov 2010 10:53:02 +0000
+ -- Chris Lamb <lamby@debian.org>  Mon, 01 Nov 2010 10:55:04 +0000
 
 gunicorn (0.10.0-1) unstable; urgency=low
 
