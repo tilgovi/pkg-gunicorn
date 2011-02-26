@@ -1,3 +1,9 @@
+gunicorn (0.11.2-2) UNRELEASED; urgency=low
+
+  * Update Vcs-{Git,Browser}.
+
+ -- Chris Lamb <lamby@debian.org>  Sat, 26 Feb 2011 18:11:36 +0000
+
 gunicorn (0.11.2-1) unstable; urgency=low
 
   * New upstream release.
