@@ -77,15 +77,6 @@ class Config(dict):
     def logfile(self):
         return os.path.join(self.log_dir, '%s.log' % self.basename())
 
-    def is_running(self):
-        return subprocess.call((
-            'start-stop-daemon',
-            '--stop',
-            '--quiet',
-            '--signal', '0',
-            '--pidfile', self.pidfile(),
-        )) == 0
-
     def start(self):
         daemon = {
             'wsgi': '/usr/bin/gunicorn',
