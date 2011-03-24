@@ -17,12 +17,15 @@ def main(conf_dir, pid_dir, log_dir, action):
         if re_ignore.search(filename):
             continue
 
-        config = Config(
-            filename,
-            pid_dir,
-            log_dir,
-            imp.load_source(filename, filename).CONFIG,
-        )
+        if sys.version_info > (2, 6):
+            # We are using a version that understands PYTHONDONTWRITEBYTECODE
+            # so it is safe to use imp.load_source here - otherwise we create
+            # "pyc"-like files in /etc/gunicorn.d which we then try and parse.
+            CONFIG = imp.load_source(filename, filename).CONFIG
+        else:
+            exec open(filename).read()
+
+        config = Config(filename, pid_dir, log_dir, CONFIG)
 
         if action in ('start', 'stop', 'reload'):
             config.print_name()
