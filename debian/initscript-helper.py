@@ -62,6 +62,7 @@ class Config(dict):
         data.setdefault('group', 'www-data')
         data.setdefault('environment', {})
         data.setdefault('working_dir', '/')
+        data.setdefault('python', '/usr/bin/python')
 
         self.update(data)
 
@@ -94,7 +95,7 @@ class Config(dict):
             '--quiet',
             '--chdir', self['working_dir'],
             '--pidfile', self.pidfile(),
-            '--exec', daemon, '--',
+            '--exec', self['python'], '--', daemon,
         ]
 
         gunicorn_args = [
