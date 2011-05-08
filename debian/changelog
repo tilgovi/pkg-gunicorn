@@ -1,11 +1,11 @@
-gunicorn (0.12.1-2) UNRELEASED; urgency=low
+gunicorn (0.12.1-2) unstable; urgency=low
 
   * Add option to specify the Python interpreter to use.
     (via https://github.com/lamby/pkg-gunicorn/issues/1)
   * Ignore files that begin with "_" so that we can avoid duplicated code.
     (via https://github.com/lamby/pkg-gunicorn/issues/2)
 
- -- Chris Lamb <lamby@debian.org>  Wed, 13 Apr 2011 11:49:40 +0100
+ -- Chris Lamb <lamby@debian.org>  Mon, 09 May 2011 00:54:18 +0100
 
 gunicorn (0.12.1-1) unstable; urgency=low
 
