@@ -5,7 +5,7 @@ import sys
 import glob
 import subprocess
 
-re_ignore = re.compile(r'(^_|\.(dpkg-(old|dist|new|tmp)|example)$)')
+re_ignore = re.compile(r'(^_|\.(dpkg-(old|dist|new|tmp)|example)$|\.pyc$)')
 
 def main(conf_dir, pid_dir, log_dir, action):
     files = glob.glob(os.path.join(conf_dir, '*'))
