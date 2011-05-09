@@ -23,6 +23,8 @@ def main(conf_dir, pid_dir, log_dir, action):
             # "pyc"-like files in /etc/gunicorn.d which we then try and parse.
             CONFIG = imp.load_source(filename, filename).CONFIG
         else:
+            # Update Python path so configurations can extend each other.
+            sys.path.append(conf_dir)
             exec open(filename).read()
 
         config = Config(filename, pid_dir, log_dir, CONFIG)
