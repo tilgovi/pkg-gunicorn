@@ -14,7 +14,7 @@ def main(conf_dir, pid_dir, log_dir, action):
         os.makedirs(pid_dir)
 
     for filename in sorted(files):
-        if re_ignore.search(filename):
+        if re_ignore.search(os.path.basename(filename)):
             continue
 
         if sys.version_info > (2, 6):
