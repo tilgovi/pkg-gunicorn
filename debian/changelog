@@ -1,4 +1,4 @@
-gunicorn (0.12.2-1) UNRELEASED; urgency=low
+gunicorn (0.12.2-1) unstable; urgency=low
 
   * New upstream release.
   * Update Python path under all Python versions, not just 2.6.
@@ -7,7 +7,7 @@ gunicorn (0.12.2-1) UNRELEASED; urgency=low
     Thanks to cbay for the patch.
     (via https://github.com/lamby/pkg-gunicorn/issues/7)
 
- -- Chris Lamb <lamby@debian.org>  Thu, 19 May 2011 11:30:52 +0100
+ -- Chris Lamb <lamby@debian.org>  Thu, 19 May 2011 16:22:21 +0100
 
 gunicorn (0.12.1-3) unstable; urgency=low
 
