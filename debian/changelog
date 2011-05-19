@@ -7,6 +7,9 @@ gunicorn (0.12.1-3) UNRELEASED; urgency=low
   * Fix "reload" action by removing "--retry 10" start-stop-daemon argument
     which was sending KILL afer 10 seconds. Thanks to cbay.
     (via https://github.com/lamby/pkg-gunicorn/issues/4)
+  * Delete *.pid files even if start-stop-daemon fails. Thanks to cbay for
+    report and patch.
+    (via https://github.com/lamby/pkg-gunicorn/issues/3)
 
  -- Chris Lamb <lamby@debian.org>  Mon, 09 May 2011 11:33:52 +0100
 

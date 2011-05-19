@@ -39,16 +39,19 @@ def main(conf_dir, pid_dir, log_dir, action):
     # renaming a configuration and it doesn't get stopped or restarted.
     if action == 'stop':
         for pidfile in glob.glob(os.path.join(pid_dir, '*.pid')):
-            if subprocess.call((
+            subprocess.call((
                 'start-stop-daemon',
                 '--stop',
                 '--oknodo',
                 '--retry', '1',
                 '--quiet',
                 '--pidfile', pidfile,
-            )):
-                # We killed the process
+            ))
+
+            try:
                 os.unlink(pidfile)
+            except OSError:
+                pass
 
     return 0
 
