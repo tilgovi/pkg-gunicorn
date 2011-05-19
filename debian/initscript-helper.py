@@ -36,11 +36,11 @@ def main(conf_dir, pid_dir, log_dir, action):
 
         config = Config(filename, pid_dir, log_dir, CONFIG)
 
-        if action in ('start', 'stop', 'reload'):
-            config.print_name()
-            getattr(config, action)()
-        else:
+        if action not in ('start', 'stop', 'reload'):
             raise ValueError("Invalid action: %s" % action)
+
+        config.print_name()
+        getattr(config, action)()
 
     # Kill any renaming pidfiles to prevent the case where we remove or
     # renaming a configuration and it doesn't get stopped or restarted.
