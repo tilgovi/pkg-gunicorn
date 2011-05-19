@@ -3,6 +3,9 @@ gunicorn (0.12.2-1) UNRELEASED; urgency=low
   * New upstream release.
   * Update Python path under all Python versions, not just 2.6.
     (via https://github.com/lamby/pkg-gunicorn/issues/6)
+  * Don't require configuration files to define a CONFIG dictionary.
+    Thanks to cbay for the patch.
+    (via https://github.com/lamby/pkg-gunicorn/issues/7)
 
  -- Chris Lamb <lamby@debian.org>  Thu, 19 May 2011 11:30:52 +0100
 
