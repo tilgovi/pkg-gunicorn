@@ -131,7 +131,6 @@ class Config(dict):
             '--signal', 'HUP',
             '--oknodo',
             '--quiet',
-            '--retry', '10',
             '--pidfile', self.pidfile(),
         ))
 
