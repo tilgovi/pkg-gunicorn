@@ -19,6 +19,8 @@ PID_DIR=/var/run/gunicorn
 LOG_DIR=/var/log/gunicorn
 CONF_DIR=/etc/gunicorn.d
 
+[ -r /etc/default/$NAME ] && . /etc/default/$NAME
+
 . /lib/lsb/init-functions
 
 Action() {

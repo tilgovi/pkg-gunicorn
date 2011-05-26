@@ -1,3 +1,11 @@
+gunicorn (0.12.2-2) UNRELEASED; urgency=low
+
+  * Source /etc/default/gunicorn so CONF_DIR (etc.) can be overridden.
+    (via https://github.com/lamby/pkg-gunicorn/issues/8). Thanks to cbay for
+    the patch.
+
+ -- Chris Lamb <lamby@debian.org>  Thu, 26 May 2011 16:39:28 +0100
+
 gunicorn (0.12.2-1) unstable; urgency=low
 
   * New upstream release.
