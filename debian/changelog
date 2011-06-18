@@ -1,3 +1,9 @@
+gunicorn (0.12.2-3) UNRELEASED; urgency=low
+
+  * Bump Standards-Version to 3.9.2.
+
+ -- Chris Lamb <lamby@debian.org>  Sat, 18 Jun 2011 14:48:34 +0100
+
 gunicorn (0.12.2-2) unstable; urgency=low
 
   * Source /etc/default/gunicorn so CONF_DIR (etc.) can be overridden.
