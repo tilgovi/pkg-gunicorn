@@ -3,7 +3,6 @@
 # This file is part of gunicorn released under the MIT license. 
 # See the NOTICE for more information.
 
-import logging
 import os
 import pkg_resources
 import sys
@@ -44,10 +43,11 @@ class PasterBaseApplication(Application):
 
         return cfg
 
-    def configure_logging(self):
+    def load_config(self):
+        super(PasterBaseApplication, self).load_config()
+
+        # reload logging conf
         if hasattr(self, "cfgfname"):
-            self.logger = logging.getLogger('gunicorn')
-            # from paste.script.command
             parser = ConfigParser.ConfigParser()
             parser.read([self.cfgfname])
             if parser.has_section('loggers'):
@@ -61,8 +61,8 @@ class PasterBaseApplication(Application):
                 config_file = os.path.abspath(self.cfgfname)
                 fileConfig(config_file, dict(__file__=config_file,
                                              here=os.path.dirname(config_file)))
-                return
-        super(PasterBaseApplication, self).configure_logging()
+        
+
 
 class PasterApplication(PasterBaseApplication):
     
@@ -123,7 +123,6 @@ class PasterServerApplication(PasterBaseApplication):
             sys.stderr.flush()
             sys.exit(1)
 
-        self.configure_logging()
 
     def load_config(self):
         if not hasattr(self, "cfgfname"):

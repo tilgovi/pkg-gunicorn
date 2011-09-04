@@ -65,18 +65,14 @@ class AsyncWorker(base.Worker):
             try:
                 for item in respiter:
                     resp.write(item)
+
+                self.log.access(resp, environ)
                 resp.close()
             finally:
                 if hasattr(respiter, "close"):
                   respiter.close()
             if resp.should_close():
                 raise StopIteration()
-        except StopIteration:
-            raise
-        except Exception, e:
-            #Only send back traceback in HTTP in debug mode.
-            self.handle_error(sock, e)
-            return False
         finally:
             try:
                 self.cfg.post_request(self, req)
