@@ -81,6 +81,7 @@ class SyncWorker(base.Worker):
             util.close(client)
 
     def handle_request(self, req, client, addr):
+        environ = {}
         try:
             self.cfg.pre_request(self, req)
             resp, environ = wsgi.create(req, client, addr,
@@ -100,6 +101,7 @@ class SyncWorker(base.Worker):
                 else:
                     for item in respiter:
                         resp.write(item)
+                self.log.access(resp, environ)
                 resp.close()
             finally:
                 if hasattr(respiter, "close"):
@@ -112,7 +114,7 @@ class SyncWorker(base.Worker):
             return
         finally:
             try:
-                self.cfg.post_request(self, req)
+                self.cfg.post_request(self, req, environ)
             except:
                 pass
 

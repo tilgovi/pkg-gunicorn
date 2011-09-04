@@ -179,6 +179,11 @@ def validate_bool(val):
     else:
         raise ValueError("Invalid boolean: %s" % val)
 
+def validate_dict(val):
+    if not isinstance(val, dict):
+        raise TypeError("Value is not a dictionary: %s " % val)
+    return val
+
 def validate_pos_int(val):
     if not isinstance(val, (types.IntType, types.LongType)):
         val = int(val, 0)
@@ -318,9 +323,10 @@ class WorkerClass(Setting):
         * ``tornado``  - Requires tornado >= 0.2
         
         Optionally, you can provide your own worker by giving gunicorn a
-        MODULE:CLASS pair where CLASS is a subclass of
-        gunicorn.workers.base.Worker. This alternative syntax will load the
-        gevent class: ``egg:gunicorn#gevent``
+        python path to a subclass of gunicorn.workers.base.Worker. This
+        alternative syntax will load the gevent class:
+        ``gunicorn.workers.ggevent.GeventWorker``. Alternatively the syntax
+        can also load the gevent class with ``egg:gunicorn#gevent``
         """
 
 class WorkerConnections(Setting):
@@ -521,15 +527,52 @@ class TmpUploadDir(Setting):
         temporary directory.
         """
 
-class Logfile(Setting):
-    name = "logfile"
+class SecureSchemeHeader(Setting):
+    name = "secure_scheme_headers"
+    section = "Server Mechanics"
+    validator = validate_dict
+    default = {
+        "X-FORWARDED-PROTOCOL": "ssl",
+        "X-FORWARDED-SSL": "on"
+    }
+    desc = """\
+
+        A dictionary containing headers and values that the front-end proxy
+        uses to indicate HTTPS requests. These tell gunicorn to set
+        wsgi.url_scheme to "https", so your application can tell that the
+        request is secure.
+
+        The dictionary should map upper-case header names to exact string
+        values. The value comparisons are case-sensitive, unlike the header
+        names, so make sure they're exactly what your front-end proxy sends
+        when handling HTTPS requests.
+
+        It is important that your front-end proxy configuration ensures that
+        the headers defined here can not be passed directly from the client.
+        """
+
+class AccessLog(Setting):
+    name = "accesslog"
     section = "Logging"
-    cli = ["--log-file"]
+    cli = ["--access-logfile"]
+    meta = "FILE"
+    validator = validate_string
+    default = None  
+    desc = """\
+        The Access log file to write to.
+        
+        "-" means log to stdout.
+        """
+
+class ErrorLog(Setting):
+    name = "errorlog"
+    section = "Logging"
+    cli = ["--error-logfile", "--log-file"]
     meta = "FILE"
     validator = validate_string
     default = "-"
     desc = """\
-        The log file to write to.
+        The Error log file to write to.
         
         "-" means log to stdout.
         """
@@ -542,7 +585,7 @@ class Loglevel(Setting):
     validator = validate_string
     default = "info"
     desc = """\
-        The granularity of log outputs.
+        The granularity of Error log outputs.
         
         Valid level names are:
         
@@ -551,20 +594,6 @@ class Loglevel(Setting):
         * warning
         * error
         * critical
-        """
-
-class LogConfig(Setting):
-    name = "logconfig"
-    section = "Logging"
-    cli = ["--log-config"]
-    meta = "FILE"
-    validator = validate_string
-    default = None 
-    desc = """\
-        The log config file to use.
-        
-        Gunicorn uses the standard Python logging module's Configuration
-        file format.
         """
 
 class Procname(Setting):
@@ -605,6 +634,21 @@ class OnStarting(Setting):
     desc = """\
         Called just before the master process is initialized.
         
+        The callable needs to accept a single instance variable for the Arbiter.
+        """
+
+class OnReload(Setting):
+    name = "on_reload"
+    section = "Server Hooks"
+    validator = validate_callable(1)
+    type = "callable"
+    def on_reload(server):
+        for i in range(server.app.cfg.workers):
+            server.spawn_worker()
+    default = staticmethod(on_reload)
+    desc = """\
+        Called to recycle workers during a reload via SIGHUP.
+
         The callable needs to accept a single instance variable for the Arbiter.
         """
 
@@ -684,9 +728,9 @@ class PreRequest(Setting):
 class PostRequest(Setting):
     name = "post_request"
     section = "Server Hooks"
-    validator = validate_callable(2)
+    validator = validate_callable(3)
     type = "callable"
-    def post_request(worker, req):
+    def post_request(worker, req, environ):
         pass
     default = staticmethod(post_request)
     desc = """\

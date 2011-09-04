@@ -6,7 +6,6 @@
 from __future__ import with_statement
 
 import errno
-import logging
 import os
 import select
 import signal
@@ -14,6 +13,8 @@ import sys
 import time
 import traceback
 
+
+from gunicorn.glogging import Logger
 from gunicorn.errors import HaltServer
 from gunicorn.pidfile import Pidfile
 from gunicorn.sock import create_socket
@@ -51,9 +52,6 @@ class Arbiter(object):
     )
     
     def __init__(self, app):
-        self.log = logging.getLogger(__name__)
-        self.log.info("Starting gunicorn %s", __version__)
-       
         os.environ["SERVER_SOFTWARE"] = SERVER_SOFTWARE
 
         self.setup(app)
@@ -87,6 +85,11 @@ class Arbiter(object):
     def setup(self, app):
         self.app = app
         self.cfg = app.cfg
+        self.log = Logger(app.cfg)
+    
+        if 'GUNICORN_FD' in os.environ:
+            self.log.reopen_files()
+        
         self.address = self.cfg.address
         self.num_workers = self.cfg.workers
         self.debug = self.cfg.debug
@@ -109,11 +112,12 @@ class Arbiter(object):
         """\
         Initialize the arbiter. Start listening and set pidfile if needed.
         """
+        self.log.info("Starting gunicorn %s", __version__)
         self.cfg.on_starting(self)
         self.pid = os.getpid()
         self.init_signals()
         if not self.LISTENER:
-            self.LISTENER = create_socket(self.cfg)
+            self.LISTENER = create_socket(self.cfg, self.log)
         
         if self.cfg.pidfile is not None:
             self.pidfile = Pidfile(self.cfg.pidfile)
@@ -136,6 +140,7 @@ class Arbiter(object):
         self.PIPE = pair = os.pipe()
         map(util.set_non_blocking, pair)
         map(util.close_on_exec, pair)
+        self.log.close_on_exec()
         map(lambda s: signal.signal(s, self.signal), self.SIGNALS)
         signal.signal(signal.SIGCHLD, self.handle_chld)
 
@@ -243,6 +248,7 @@ class Arbiter(object):
         Kill all workers by sending them a SIGUSR1
         """
         self.kill_workers(signal.SIGUSR1)
+        self.log.reopen_files()
     
     def handle_usr2(self):
         """\
@@ -310,6 +316,10 @@ class Arbiter(object):
         :attr graceful: boolean, If True (the default) workers will be
         killed gracefully  (ie. trying to wait for the current connection)
         """
+        try:
+            self.LISTENER.close()
+        except Exception:
+            pass
         self.LISTENER = None
         sig = signal.SIGQUIT
         if not graceful:
@@ -327,17 +337,17 @@ class Arbiter(object):
         """
         if self.pidfile is not None:
             self.pidfile.rename("%s.oldbin" % self.pidfile.fname)
-        
+
         self.reexec_pid = os.fork()
         if self.reexec_pid != 0:
             self.master_name = "Old Master"
             return
-            
+
         os.environ['GUNICORN_FD'] = str(self.LISTENER.fileno())
         os.chdir(self.START_CTX['cwd'])
         self.cfg.pre_exec(self)
         os.execvpe(self.START_CTX[0], self.START_CTX['args'], os.environ)
-        
+
     def reload(self):
         old_address = self.cfg.address
 
@@ -352,8 +362,7 @@ class Arbiter(object):
             self.log.info("Listening at: %s", self.LISTENER)    
 
         # spawn new workers with new app & conf
-        for i in range(self.app.cfg.workers):
-            self.spawn_worker()
+        self.cfg.on_reload(self)
         
         # unlink pidfile
         if self.pidfile is not None:
@@ -368,6 +377,8 @@ class Arbiter(object):
         util._setproctitle("master [%s]" % self.proc_name)
         
         # manage workers
+        self.log.reopen_files()
+
         self.manage_workers() 
         
     def murder_workers(self):
@@ -376,8 +387,7 @@ class Arbiter(object):
         """
         for (pid, worker) in self.WORKERS.items():
             try:
-                diff = time.time() - os.fstat(worker.tmp.fileno()).st_ctime
-                if diff <= self.timeout:
+                if time.time() - worker.tmp.last_update() <= self.timeout:
                     continue
             except ValueError:
                 continue
@@ -419,23 +429,22 @@ class Arbiter(object):
         if len(self.WORKERS.keys()) < self.num_workers:
             self.spawn_workers()
 
-        num_to_kill = len(self.WORKERS) - self.num_workers
-        for i in range(num_to_kill, 0, -1):
-            pid, age = 0, sys.maxint
-            for (wpid, worker) in self.WORKERS.iteritems():
-                if worker.age < age:
-                    pid, age = wpid, worker.age
+        workers = self.WORKERS.items()
+        workers.sort(key=lambda w: w[1].age)
+        while len(workers) > self.num_workers:
+            (pid, _) = workers.pop(0)
             self.kill_worker(pid, signal.SIGQUIT)
             
     def spawn_worker(self):
         self.worker_age += 1
         worker = self.worker_class(self.worker_age, self.pid, self.LISTENER,
-                                    self.app, self.timeout/2.0, self.cfg)
+                                    self.app, self.timeout/2.0,
+                                    self.cfg, self.log)
         self.cfg.pre_fork(self, worker)
         pid = os.fork()
         if pid != 0:
             self.WORKERS[pid] = worker
-            return
+            return pid
 
         # Process Child
         worker_pid = os.getpid()
