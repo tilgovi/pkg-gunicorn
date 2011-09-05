@@ -2,7 +2,7 @@ gunicorn (0.12.2-2~bpo60+1) squeeze-backports; urgency=low
 
   * Rebuild for squeeze-backports.
 
- -- Chris Lamb <lamby@debian.org>  Mon, 05 Sep 2011 09:11:49 +0100
+ -- Chris Lamb <lamby@debian.org>  Mon, 05 Sep 2011 09:12:10 +0100
 
 gunicorn (0.12.2-2) unstable; urgency=low
 
