@@ -1,3 +1,10 @@
+gunicorn (0.13.1-1) unstable; urgency=low
+
+  * New upstream release.
+  * Bump Standards-Version to 3.9.2.
+
+ -- Chris Lamb <lamby@debian.org>  Sun, 04 Sep 2011 12:20:18 +0100
+
 gunicorn (0.12.2-2~bpo60+1) squeeze-backports; urgency=low
 
   * Rebuild for squeeze-backports.

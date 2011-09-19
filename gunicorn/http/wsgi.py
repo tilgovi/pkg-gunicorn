@@ -17,7 +17,7 @@ try:
     from os import sendfile
 except ImportError:
     try:
-        from _senfile import sendfile
+        from _sendfile import sendfile
     except ImportError:
         sendfile = None
 
@@ -68,6 +68,8 @@ def create(req, sock, client, server, cfg):
     url_scheme = "http"
     script_name = os.environ.get("SCRIPT_NAME", "")
 
+    secure_headers = getattr(cfg, "secure_scheme_headers")
+
     for hdr_name, hdr_value in req.headers:
         if hdr_name == "EXPECT":
             # handle expect
@@ -75,9 +77,8 @@ def create(req, sock, client, server, cfg):
                 sock.send("HTTP/1.1 100 Continue\r\n\r\n")
         elif hdr_name == "X-FORWARDED-FOR":
             forward = hdr_value
-        elif hdr_name == "X-FORWARDED-PROTOCOL" and hdr_value.lower() == "ssl":
-            url_scheme = "https"
-        elif hdr_name == "X-FORWARDED-SSL" and hdr_value.lower() == "on":
+        elif (hdr_name.upper() in secure_headers and
+              hdr_value == secure_headers[hdr_name.upper()]):
             url_scheme = "https"
         elif hdr_name == "HOST":
             server = hdr_value
@@ -95,7 +96,6 @@ def create(req, sock, client, server, cfg):
 
     environ['wsgi.url_scheme'] = url_scheme
         
-
     if isinstance(forward, basestring):
         # we only took the last one
         # http://en.wikipedia.org/wiki/X-Forwarded-For
@@ -207,6 +207,10 @@ class Response(object):
             return False
         elif self.req.version <= (1,0):
             return False
+        elif self.status.startswith("304") or self.status.startswith("204"):
+            # Do not use chunked responses when the response is guaranteed to
+            # not have a response body.
+            return False
         return True
 
     def default_headers(self):
@@ -269,9 +273,9 @@ class Response(object):
                 nbytes -= BLKSIZE
         else:
             sent = 0
-            sent += sendfile(fileno, sockno, offset+sent, nbytes-sent)
+            sent += sendfile(sockno, fileno, offset+sent, nbytes-sent)
             while sent != nbytes:
-                sent += sendfile(fileno, sockno, offset+sent, nbytes-sent)
+                sent += sendfile(sockno, fileno, offset+sent, nbytes-sent)
 
     def write_file(self, respiter):
         if sendfile is not None and \
