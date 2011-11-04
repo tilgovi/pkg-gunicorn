@@ -1,3 +1,11 @@
+gunicorn (0.13.1-2) UNRELEASED; urgency=low
+
+  * Bump retry time and make it configurable. This is required so that we don't
+    attempt to (re)start gunicorn when the previous instances are still running
+    as the port would still be in use and would then completely fail to start.
+
+ -- Chris Lamb <lamby@debian.org>  Fri, 04 Nov 2011 11:37:29 +0000
+
 gunicorn (0.13.1-1) unstable; urgency=low
 
   * New upstream release.

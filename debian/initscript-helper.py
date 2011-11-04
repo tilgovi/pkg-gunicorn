@@ -72,6 +72,7 @@ class Config(dict):
         data.setdefault('mode', 'wsgi')
         data.setdefault('user', 'www-data')
         data.setdefault('group', 'www-data')
+        data.setdefault('retry', '60')
         data.setdefault('environment', {})
         data.setdefault('working_dir', '/')
         data.setdefault('python', '/usr/bin/python')
@@ -130,7 +131,7 @@ class Config(dict):
             '--stop',
             '--oknodo',
             '--quiet',
-            '--retry', '10',
+            '--retry', self['retry'],
             '--pidfile', self.pidfile(),
         ))
 
