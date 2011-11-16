@@ -1,3 +1,12 @@
+gunicorn (0.13.4-1) unstable; urgency=low
+
+  * New upstream version.
+  * Bump retry time and make it configurable. This is required so that we don't
+    attempt to (re)start gunicorn when the previous instances are still running
+    as the port would still be in use and would then completely fail to start.
+
+ -- Chris Lamb <lamby@debian.org>  Wed, 16 Nov 2011 17:05:47 +0000
+
 gunicorn (0.13.1-1~bpo60+1) squeeze-backports; urgency=low
 
   * Rebuild for squeeze-backports.

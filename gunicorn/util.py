@@ -64,7 +64,7 @@ except ImportError:
     def _setproctitle(title):
         return
 
-def load_worker_class(uri):
+def load_class(uri, default="sync", section="gunicorn.workers"):
     if uri.startswith("egg:"):
         # uses entry points
         entry_str = uri.split("egg:")[1]
@@ -72,19 +72,20 @@ def load_worker_class(uri):
             dist, name = entry_str.rsplit("#",1)
         except ValueError:
             dist = entry_str
-            name = "sync"
+            name = default
 
-        return pkg_resources.load_entry_point(dist, "gunicorn.workers", name)
+        return pkg_resources.load_entry_point(dist, section, name)
     else:
         components = uri.split('.')
         if len(components) == 1:
             try:
                 if uri.startswith("#"):
                     uri = uri[1:]
+
                 return pkg_resources.load_entry_point("gunicorn", 
-                            "gunicorn.workers", uri)
+                            section, uri)
             except ImportError: 
-                raise RuntimeError("arbiter uri invalid or not found")
+                raise RuntimeError("class uri invalid or not found")
         klass = components.pop(-1)
         mod = __import__('.'.join(components))
         for comp in components[1:]:
@@ -167,6 +168,17 @@ def close(sock):
         sock.close()
     except socket.error:
         pass
+
+try:
+    from os import closerange
+except ImportError:
+    def closerange(fd_low, fd_high):
+        # Iterate through and close all file descriptors.
+        for fd in xrange(fd_low, fd_high):
+            try:
+                os.close(fd)
+            except OSError:	# ERROR, fd wasn't open to begin with (ignored)
+                pass
 
 def write_chunk(sock, data):
     chunk = "".join(("%X\r\n" % len(data), data, "\r\n"))
@@ -280,13 +292,7 @@ def daemonize():
         
         os.umask(0)
         maxfd = get_maxfd()
-
-        # Iterate through and close all file descriptors.
-        for fd in range(0, maxfd):
-            try:
-                os.close(fd)
-            except OSError:	# ERROR, fd wasn't open to begin with (ignored)
-                pass
+        closerange(0, maxfd)
         
         os.open(REDIRECT_TO, os.O_RDWR)
         os.dup2(0, 1)

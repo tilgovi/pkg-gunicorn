@@ -7,6 +7,7 @@ import datetime
 import logging
 logging.Logger.manager.emittedNoHandlerWarning = 1
 import sys
+import traceback
 
 from gunicorn import util
 
@@ -24,9 +25,6 @@ class Logger(object):
     datefmt = r"%Y-%m-%d %H:%M:%S"
 
     access_fmt = "%(message)s"
-
-    access_log_format = \
-            '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s"'
 
     def __init__(self, cfg):
         self.error_log = logging.getLogger("gunicorn.error")
@@ -72,18 +70,19 @@ class Logger(object):
     def exception(self, msg, *args):
         self.error_log.exception(msg, *args)
 
-    def log(lvl, msg, *args, **kwargs):
+    def log(self, lvl, msg, *args, **kwargs):
         if isinstance(lvl, basestring):
             lvl = self.LOG_LEVELS.get(lvl.lower(), logging.INFO)
         self.error_log.log(lvl, msg, *args, **kwargs)
 
-    def access(self, resp, environ):
+    def access(self, resp, environ, request_time):
         """ Seee http://httpd.apache.org/docs/2.0/logs.html#combined
         for format details
         """
 
         if not self.cfg.accesslog:
             return
+
 
         status = resp.status.split(None, 1)[0]
         atoms = {
@@ -94,18 +93,24 @@ class Logger(object):
                 'r': "%s %s %s" % (environ['REQUEST_METHOD'],
                     environ['RAW_URI'], environ["SERVER_PROTOCOL"]),
                 's': status,
-                'b': str(resp.clength) or '-',
+                'b': str(resp.response_length) or '-',
                 'f': environ.get('HTTP_REFERER', '-'),
-                'a': environ.get('HTTP_USER_AGENT', '-')
+                'a': environ.get('HTTP_USER_AGENT', '-'),
+                'T': str(request_time.seconds),
+                'D': str(request_time.microseconds)
                 }
+
+        # add WSGI request headers 
+        atoms.update(dict([(k,v) for k, v in environ.items() \
+                if k.startswith('HTTP_')]))
 
         for k, v in atoms.items():
             atoms[k] = v.replace('"', '\\"')
-
+    
         try:
-            self.access_log.info(self.access_log_format % atoms)
+            self.access_log.info(self.cfg.access_log_format % atoms)
         except:
-            self.errors(traceback.format_exc())
+            self.error(traceback.format_exc())
 
     def now(self):
         """ return date in Apache Common Log Format """
@@ -121,7 +126,7 @@ class Logger(object):
                 if isinstance(handler, logging.FileHandler):
                     handler.acquire()
                     handler.stream.close()
-                    handler.stream = open(handler.baseFileName,
+                    handler.stream = open(handler.baseFilename,
                             handler.mode)
                     handler.release()
 
