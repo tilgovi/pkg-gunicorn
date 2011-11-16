@@ -72,7 +72,7 @@ class Config(object):
     @property
     def worker_class(self):
         uri = self.settings['worker_class'].get()
-        worker_class = util.load_worker_class(uri)
+        worker_class = util.load_class(uri)
         if hasattr(worker_class, "setup"):
             worker_class.setup()
         return worker_class
@@ -101,6 +101,17 @@ class Config(object):
             return pn
         else:
             return self.settings['default_proc_name'].get()
+
+    @property
+    def logger_class(self):
+        uri = self.settings['logger_class'].get()
+        logger_class = util.load_class(uri, default="simple",
+            section="gunicorn.loggers")
+
+        if hasattr(logger_class, "install"):
+            logger_class.install()
+        return logger_class
+
             
 class SettingMeta(type):
     def __new__(cls, name, bases, attrs):
@@ -237,6 +248,27 @@ def validate_group(val):
             return grp.getgrnam(val).gr_gid
         except KeyError:
             raise ConfigError("No such group: '%s'" % val)
+
+def validate_post_request(val):
+
+    # decorator
+    def wrap_post_request(fun):
+        def _wrapped(instance, req, environ):
+            return fun(instance, req)
+        return _wrapped
+    
+    if not callable(val):
+        raise TypeError("Value isn't a callable: %s" % val)
+
+    largs = len(inspect.getargspec(val)[0])
+    if largs == 3:
+        return val
+    elif largs == 2:
+        return wrap_post_request(val)
+    else:
+         raise TypeError("Value must have an arity of: 3")
+
+
 
 class ConfigFile(Setting):
     name = "config"
@@ -564,6 +596,36 @@ class AccessLog(Setting):
         "-" means log to stdout.
         """
 
+class AccessLogFormat(Setting):
+    name = "access_log_format"
+    section = "Logging"
+    cli = ["--access-logformat"]
+    meta = "STRING"
+    validator = validate_string
+    default = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s"'  
+    desc = """\
+        The Access log format .
+
+        By default:
+
+        %(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s"
+
+
+        h: remote address
+        t: date of the request
+        r: status line (ex: GET / HTTP/1.1)
+        s: status
+        b: response length or '-'
+        f: referer
+        a: user agent
+        T: request time in seconds
+        D: request time in microseconds
+
+        You can also pass any WSGI request header as a parameter. 
+        (ex '%(HTTP_HOST)s').
+        """
+
+
 class ErrorLog(Setting):
     name = "errorlog"
     section = "Logging"
@@ -594,6 +656,25 @@ class Loglevel(Setting):
         * warning
         * error
         * critical
+        """
+
+class LoggerClass(Setting):
+    name = "logger_class"
+    section = "Logging"
+    cli = ["--logger-class"]
+    meta = "STRING"
+    validator = validate_string
+    default = "simple"
+    desc = """\
+        The logger you want to use to log events in gunicorn.
+
+        The default class (``gunicorn.glogging.Logger``) handle most of
+        normal usages in logging. It provides error and access logging.
+
+        You can provide your own worker by giving gunicorn a
+        python path to a subclass like gunicorn.glogging.Logger. 
+        Alternatively the syntax can also load the Logger class 
+        with ``egg:gunicorn#simple`
         """
 
 class Procname(Setting):
@@ -728,7 +809,7 @@ class PreRequest(Setting):
 class PostRequest(Setting):
     name = "post_request"
     section = "Server Hooks"
-    validator = validate_callable(3)
+    validator = validate_post_request
     type = "callable"
     def post_request(worker, req, environ):
         pass

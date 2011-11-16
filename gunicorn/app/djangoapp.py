@@ -9,6 +9,7 @@ import os
 import sys
 import time
 import traceback
+import re
 
 from gunicorn.config import Config
 from gunicorn.app.base import Application
@@ -271,7 +272,7 @@ class DjangoApplicationCommand(DjangoApplication):
             time.tzset()
 
         # Settings are configured, so we can set up the logger if required
-        if settings.LOGGING_CONFIG:
+        if getattr(settings, 'LOGGING_CONFIG', False):
             # First find the logging configuration function ...
             logging_config_path, logging_config_func_name = settings.LOGGING_CONFIG.rsplit('.', 1)
             logging_config_module = importlib.import_module(logging_config_path)
