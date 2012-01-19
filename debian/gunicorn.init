@@ -14,7 +14,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 NAME=gunicorn
 DESC="Gunicorn workers"
 
-HELPER=/usr/share/gunicorn/initscript-helper.py
+HELPER=/usr/sbin/gunicorn-debian
 PID_DIR=/var/run/gunicorn
 LOG_DIR=/var/log/gunicorn
 CONF_DIR=/etc/gunicorn.d

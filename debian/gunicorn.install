@@ -1,2 +1,2 @@
 debian/gunicorn.d etc
-debian/initscript-helper.py usr/share/gunicorn
+debian/gunicorn-debian usr/sbin
