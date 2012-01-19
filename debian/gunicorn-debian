@@ -13,7 +13,7 @@ from optparse import OptionParser
 re_ignore = re.compile(r'(^_|\.(dpkg-(old|dist|new|tmp)|example)$|\.pyc|\.comc$)')
 
 def main():
-    parser = OptionParser("usage: %prog [options] start|stop|reload")
+    parser = OptionParser("usage: %prog [options] start|stop|reload [configs]")
 
     parser.add_option('--conf-dir', dest='conf_dir',
         default='/etc/gunicorn.d')
@@ -43,6 +43,8 @@ def main():
 
     log = logging.getLogger('gunicorn-debian')
 
+    configs = args[1:]
+
     try:
         action = args[0]
     except IndexError:
@@ -63,8 +65,14 @@ def main():
     sys.dont_write_bytecode = True
 
     for filename in sorted(files):
-        if re_ignore.search(os.path.basename(filename)):
+        basename = os.path.basename(filename)
+
+        if re_ignore.search(basename):
             log.debug("Ignoring %s", filename)
+            continue
+
+        if configs and basename not in configs:
+            log.debug("Skipping %s", filename)
             continue
 
         log.debug("Loading %s", filename)
