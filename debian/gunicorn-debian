@@ -6,6 +6,7 @@ import imp
 import sys
 import glob
 import subprocess
+import logging
 
 from optparse import OptionParser
 
@@ -21,7 +22,26 @@ def main():
     parser.add_option('--log-dir', dest='log_dir',
         default='/var/log/gunicorn')
 
+    parser.add_option('-v', '--verbosity', type='int', dest='verbosity',
+        default=2, help='Verbosity level; 0=minimal output, 1=normal output' \
+            '2=verbose output, 3=very verbose output')
+
     options, args = parser.parse_args()
+
+    try:
+        logging.basicConfig(
+            format='%(levelname).1s: %(message)s',
+            level={
+                0: logging.ERROR,
+                1: logging.WARNING,
+                2: logging.INFO,
+                3: logging.DEBUG,
+            }[options.verbosity]
+        )
+    except KeyError:
+        parser.error("Invalid verbosity level")
+
+    log = logging.getLogger('gunicorn-debian')
 
     try:
         action = args[0]
@@ -34,6 +54,7 @@ def main():
     files = glob.glob(os.path.join(options.conf_dir, '*'))
 
     if not os.path.exists(options.pid_dir):
+        log.info("Creating %s", options.pid_dir)
         os.makedirs(options.pid_dir)
 
     # Update Python path so configurations can extend each other.
@@ -43,7 +64,10 @@ def main():
 
     for filename in sorted(files):
         if re_ignore.search(os.path.basename(filename)):
+            log.debug("Ignoring %s", filename)
             continue
+
+        log.debug("Loading %s", filename)
 
         if sys.version_info > (2, 6):
             # We are using a version that understands PYTHONDONTWRITEBYTECODE
@@ -61,13 +85,17 @@ def main():
 
         config = Config(filename, options.pid_dir, options.log_dir, CONFIG)
 
-        config.print_name()
+        if options.verbosity < 3:
+            config.print_name()
+
+        log.debug("Calling .%s() on %s", action, config.basename())
         getattr(config, action)()
 
     # Kill any renaming pidfiles to prevent the case where we remove or
     # renaming a configuration and it doesn't get stopped or restarted.
     if action == 'stop':
         for pidfile in glob.glob(os.path.join(options.pid_dir, '*.pid')):
+            log.debug("Stopping extraenous pidfile %s", pidfile)
             subprocess.call((
                 'start-stop-daemon',
                 '--stop',
