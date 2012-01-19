@@ -31,7 +31,12 @@ Action() {
 
 	log_daemon_msg "$1"
 
-	if PYTHONDONTWRITEBYTECODE=1 python $HELPER $CONF_DIR $PID_DIR $LOG_DIR $2
+	if PYTHONDONTWRITEBYTECODE=1 \
+		$HELPER \
+		--conf-dir=$CONF_DIR \
+		--pid-dir=$PID_DIR \
+		--log-dir=$LOG_DIR \
+		$2
 	then
 		log_success_msg
 	else

@@ -7,16 +7,37 @@ import sys
 import glob
 import subprocess
 
+from optparse import OptionParser
+
 re_ignore = re.compile(r'(^_|\.(dpkg-(old|dist|new|tmp)|example)$|\.pyc$)')
 
-def main(conf_dir, pid_dir, log_dir, action):
-    files = glob.glob(os.path.join(conf_dir, '*'))
+def main():
+    parser = OptionParser("usage: %prog [options] start|stop|reload")
 
-    if not os.path.exists(pid_dir):
-        os.makedirs(pid_dir)
+    parser.add_option('--conf-dir', dest='conf_dir',
+        default='/etc/gunicorn.d')
+    parser.add_option('--pid-dir', dest='pid_dir',
+        default='/var/run/gunicorn')
+    parser.add_option('--log-dir', dest='log_dir',
+        default='/var/log/gunicorn')
+
+    options, args = parser.parse_args()
+
+    try:
+        action = args[0]
+    except IndexError:
+        parser.error("Missing action")
+
+    if action not in ('start', 'stop', 'reload'):
+        parser.error("Invalid action: %s" % action)
+
+    files = glob.glob(os.path.join(options.conf_dir, '*'))
+
+    if not os.path.exists(options.pid_dir):
+        os.makedirs(options.pid_dir)
 
     # Update Python path so configurations can extend each other.
-    sys.path.append(conf_dir)
+    sys.path.append(options.conf_dir)
 
     for filename in sorted(files):
         if re_ignore.search(os.path.basename(filename)):
@@ -36,10 +57,7 @@ def main(conf_dir, pid_dir, log_dir, action):
         if not CONFIG:
             continue
 
-        config = Config(filename, pid_dir, log_dir, CONFIG)
-
-        if action not in ('start', 'stop', 'reload'):
-            raise ValueError("Invalid action: %s" % action)
+        config = Config(filename, options.pid_dir, options.log_dir, CONFIG)
 
         config.print_name()
         getattr(config, action)()
@@ -47,7 +65,7 @@ def main(conf_dir, pid_dir, log_dir, action):
     # Kill any renaming pidfiles to prevent the case where we remove or
     # renaming a configuration and it doesn't get stopped or restarted.
     if action == 'stop':
-        for pidfile in glob.glob(os.path.join(pid_dir, '*.pid')):
+        for pidfile in glob.glob(os.path.join(options.pid_dir, '*.pid')):
             subprocess.call((
                 'start-stop-daemon',
                 '--stop',
@@ -148,4 +166,4 @@ class Config(dict):
         ))
 
 if __name__ == '__main__':
-    sys.exit(main(*sys.argv[1:]))
+    sys.exit(main())
