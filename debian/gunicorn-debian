@@ -190,14 +190,18 @@ class Config(dict):
         ))
 
     def reload(self):
-        self.check_call((
-            'start-stop-daemon',
-            '--stop',
-            '--signal', 'HUP',
-            '--oknodo',
-            '--quiet',
-            '--pidfile', self.pidfile(),
-        ))
+        try:
+            self.check_call((
+                'start-stop-daemon',
+                '--stop',
+                '--signal', 'HUP',
+                '--quiet',
+                '--pidfile', self.pidfile(),
+            ))
+        except subprocess.CalledProcessError:
+            self.log.debug("Could not reload, so restarting instead")
+            self.stop()
+            self.start()
 
 if __name__ == '__main__':
     sys.exit(main())
