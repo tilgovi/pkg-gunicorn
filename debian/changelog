@@ -1,4 +1,4 @@
-gunicorn (0.13.4-2) UNRELEASED; urgency=low
+gunicorn (0.13.4-2) unstable; urgency=low
 
   * Move /usr/share/gunicorn/initscript-helper.py => /usr/sbin/gunicorn-debian.
   * Detect dpkg "rc" state in /etc/init.d/gunicorn.
@@ -13,7 +13,7 @@ gunicorn (0.13.4-2) UNRELEASED; urgency=low
   * Allow limiting actions to particular configs. Thanks to thomas marquart
     <thomas@marquart.se> for the suggestion.
 
- -- Chris Lamb <lamby@debian.org>  Thu, 19 Jan 2012 12:09:43 +0000
+ -- Chris Lamb <lamby@debian.org>  Thu, 19 Jan 2012 15:27:53 +0000
 
 gunicorn (0.13.4-1) unstable; urgency=low
 
