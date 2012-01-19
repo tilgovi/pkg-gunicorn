@@ -9,7 +9,7 @@ import subprocess
 
 from optparse import OptionParser
 
-re_ignore = re.compile(r'(^_|\.(dpkg-(old|dist|new|tmp)|example)$|\.pyc$)')
+re_ignore = re.compile(r'(^_|\.(dpkg-(old|dist|new|tmp)|example)$|\.pyc|\.comc$)')
 
 def main():
     parser = OptionParser("usage: %prog [options] start|stop|reload")
