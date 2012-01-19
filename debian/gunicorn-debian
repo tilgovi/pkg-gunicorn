@@ -83,7 +83,7 @@ def main():
         if not CONFIG:
             continue
 
-        config = Config(filename, options, CONFIG)
+        config = Config(filename, options, CONFIG, log)
 
         if options.verbosity < 3:
             config.print_name()
@@ -113,9 +113,10 @@ def main():
     return 0
 
 class Config(dict):
-    def __init__(self, filename, options, data):
+    def __init__(self, filename, options, data, log):
         self.filename = filename
         self.options = options
+        self.log = log
 
         data['args'] = list(data.get('args', []))
         data.setdefault('mode', 'wsgi')
@@ -142,6 +143,10 @@ class Config(dict):
 
     def logfile(self):
         return os.path.join(self.options.log_dir, '%s.log' % self.basename())
+
+    def check_call(self, *args, **kwargs):
+        self.log.debug("Calling subprocess.check_call(*%r, **%r)", args, kwargs)
+        subprocess.check_call(*args, **kwargs)
 
     def start(self):
         daemon = {
@@ -172,10 +177,10 @@ class Config(dict):
         env = os.environ.copy()
         env.update(self['environment'])
 
-        subprocess.check_call(args + gunicorn_args + self['args'], env=env)
+        self.check_call(args + gunicorn_args + self['args'], env=env)
 
     def stop(self):
-        subprocess.check_call((
+        self.check_call((
             'start-stop-daemon',
             '--stop',
             '--oknodo',
@@ -185,7 +190,7 @@ class Config(dict):
         ))
 
     def reload(self):
-        subprocess.check_call((
+        self.check_call((
             'start-stop-daemon',
             '--stop',
             '--signal', 'HUP',

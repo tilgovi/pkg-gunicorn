@@ -8,6 +8,7 @@ gunicorn (0.13.4-2) UNRELEASED; urgency=low
     variable.
   * Ignore .comc files too.
   * Logging for /usr/sbin/gunicorn-debian.
+  * Better logging of what start-stop-daemon is called with.
 
  -- Chris Lamb <lamby@debian.org>  Thu, 19 Jan 2012 12:09:43 +0000
 
