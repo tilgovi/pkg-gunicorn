@@ -1,3 +1,20 @@
+gunicorn (0.13.4-2) unstable; urgency=low
+
+  * Move /usr/share/gunicorn/initscript-helper.py => /usr/sbin/gunicorn-debian.
+  * Detect dpkg "rc" state in /etc/init.d/gunicorn.
+  * Add shebang to /usr/sbin/gunicorn-debian.
+  * Use optparse to parse command line over unpacking sys.argv.
+  * Use sys.dont_write_bytecode over PYTHONDONTWRITEBYTECODE environment
+    variable.
+  * Ignore .comc files too.
+  * Logging for /usr/sbin/gunicorn-debian.
+  * Better logging of what start-stop-daemon is called with.
+  * "reload" starts unstarted instances (Closes: #642234)
+  * Allow limiting actions to particular configs. Thanks to thomas marquart
+    <thomas@marquart.se> for the suggestion.
+
+ -- Chris Lamb <lamby@debian.org>  Thu, 19 Jan 2012 15:27:53 +0000
+
 gunicorn (0.13.4-1~bpo60+1) squeeze-backports; urgency=low
 
   * Rebuild for squeeze-backports.
