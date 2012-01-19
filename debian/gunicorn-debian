@@ -39,6 +39,8 @@ def main():
     # Update Python path so configurations can extend each other.
     sys.path.append(options.conf_dir)
 
+    sys.dont_write_bytecode = True
+
     for filename in sorted(files):
         if re_ignore.search(os.path.basename(filename)):
             continue
