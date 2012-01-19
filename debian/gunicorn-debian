@@ -83,7 +83,7 @@ def main():
         if not CONFIG:
             continue
 
-        config = Config(filename, options.pid_dir, options.log_dir, CONFIG)
+        config = Config(filename, options, CONFIG)
 
         if options.verbosity < 3:
             config.print_name()
@@ -113,10 +113,9 @@ def main():
     return 0
 
 class Config(dict):
-    def __init__(self, filename, pid_dir, log_dir, data):
-        self.pid_dir = pid_dir
-        self.log_dir = log_dir
+    def __init__(self, filename, options, data):
         self.filename = filename
+        self.options = options
 
         data['args'] = list(data.get('args', []))
         data.setdefault('mode', 'wsgi')
@@ -139,10 +138,10 @@ class Config(dict):
         return os.path.basename(self.filename)
 
     def pidfile(self):
-        return os.path.join(self.pid_dir, '%s.pid' % self.basename())
+        return os.path.join(self.options.pid_dir, '%s.pid' % self.basename())
 
     def logfile(self):
-        return os.path.join(self.log_dir, '%s.log' % self.basename())
+        return os.path.join(self.options.log_dir, '%s.log' % self.basename())
 
     def start(self):
         daemon = {
