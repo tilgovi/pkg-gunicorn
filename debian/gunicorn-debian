@@ -50,7 +50,7 @@ def main():
     except IndexError:
         parser.error("Missing action")
 
-    if action not in ('start', 'stop', 'reload'):
+    if action not in ('start', 'stop', 'restart', 'reload'):
         parser.error("Invalid action: %s" % action)
 
     files = glob.glob(os.path.join(options.conf_dir, '*'))
@@ -197,6 +197,10 @@ class Config(dict):
             '--pidfile', self.pidfile(),
         ))
 
+    def restart(self):
+        self.stop()
+        self.start()
+
     def reload(self):
         try:
             self.check_call((
@@ -208,8 +212,7 @@ class Config(dict):
             ))
         except subprocess.CalledProcessError:
             self.log.debug("Could not reload, so restarting instead")
-            self.stop()
-            self.start()
+            self.restart()
 
 if __name__ == '__main__':
     sys.exit(main())
