@@ -24,7 +24,7 @@ def main():
 
     parser.add_option('-v', '--verbosity', type='int', dest='verbosity',
         default=2, help='Verbosity level; 0=minimal output, 1=normal output' \
-            '2=verbose output, 3=very verbose output')
+            ' 2=verbose output, 3=very verbose output')
 
     options, args = parser.parse_args()
 
