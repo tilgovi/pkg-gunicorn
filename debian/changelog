@@ -1,8 +1,8 @@
-gunicorn (0.13.4-3) UNRELEASED; urgency=low
+gunicorn (0.13.4-3) unstable; urgency=low
 
   * Don't stop *all* configurations when calling "gunicorn-debian stop config".
 
- -- Chris Lamb <lamby@debian.org>  Fri, 10 Feb 2012 12:47:28 +0000
+ -- Chris Lamb <lamby@debian.org>  Fri, 10 Feb 2012 12:49:17 +0000
 
 gunicorn (0.13.4-2) unstable; urgency=low
 
