@@ -1,8 +1,9 @@
-gunicorn (0.13.4-4) UNRELEASED; urgency=low
+gunicorn (0.14.2-1) UNRELEASED; urgency=low
 
+  * New upstream version.
   * Add support for "restart" argument to gunicorn-debian.
 
- -- Chris Lamb <lamby@debian.org>  Tue, 24 Jan 2012 15:45:52 +0000
+ -- Chris Lamb <lamby@debian.org>  Mon, 16 Apr 2012 17:56:52 +0100
 
 gunicorn (0.13.4-3) unstable; urgency=low
 
