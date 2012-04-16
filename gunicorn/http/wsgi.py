@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -
 #
-# This file is part of gunicorn released under the MIT license. 
+# This file is part of gunicorn released under the MIT license.
 # See the NOTICE for more information.
 
 import logging
@@ -55,11 +55,9 @@ def create(req, sock, client, server, cfg):
         "REQUEST_METHOD": req.method,
         "QUERY_STRING": req.query,
         "RAW_URI": req.uri,
-        "SERVER_PROTOCOL": "HTTP/%s" % ".".join(map(str, req.version)),
-        "CONTENT_TYPE": "",
-        "CONTENT_LENGTH": ""
+        "SERVER_PROTOCOL": "HTTP/%s" % ".".join(map(str, req.version))
     }
-    
+
     # authors should be aware that REMOTE_HOST and REMOTE_ADDR
     # may not qualify the remote addr:
     # http://www.ietf.org/rfc/rfc3875
@@ -68,14 +66,15 @@ def create(req, sock, client, server, cfg):
     url_scheme = "http"
     script_name = os.environ.get("SCRIPT_NAME", "")
 
-    secure_headers = getattr(cfg, "secure_scheme_headers")
+    secure_headers = cfg.secure_scheme_headers
+    x_forwarded_for_header = cfg.x_forwarded_for_header
 
     for hdr_name, hdr_value in req.headers:
         if hdr_name == "EXPECT":
             # handle expect
             if hdr_value.lower() == "100-continue":
                 sock.send("HTTP/1.1 100 Continue\r\n\r\n")
-        elif hdr_name == "X-FORWARDED-FOR":
+        elif hdr_name == x_forwarded_for_header:
             forward = hdr_value
         elif (hdr_name.upper() in secure_headers and
               hdr_value == secure_headers[hdr_name.upper()]):
@@ -90,12 +89,14 @@ def create(req, sock, client, server, cfg):
         elif hdr_name == "CONTENT-LENGTH":
             environ['CONTENT_LENGTH'] = hdr_value
             continue
-        
+
         key = 'HTTP_' + hdr_name.replace('-', '_')
+        if key in environ:
+            hdr_value = "%s,%s" % (environ[key], hdr_value)
         environ[key] = hdr_value
 
     environ['wsgi.url_scheme'] = url_scheme
-        
+
     if isinstance(forward, basestring):
         # we only took the last one
         # http://en.wikipedia.org/wiki/X-Forwarded-For
@@ -118,7 +119,7 @@ def create(req, sock, client, server, cfg):
 
         remote = (host, port)
     else:
-        remote = forward 
+        remote = forward
 
     environ['REMOTE_ADDR'] = remote[0]
     environ['REMOTE_PORT'] = str(remote[1])
@@ -133,7 +134,7 @@ def create(req, sock, client, server, cfg):
             else:
                 server.append('')
     environ['SERVER_NAME'] = server[0]
-    environ['SERVER_PORT'] = server[1]
+    environ['SERVER_PORT'] = str(server[1])
 
     path_info = req.path
     if script_name:
@@ -156,6 +157,7 @@ class Response(object):
         self.headers_sent = False
         self.response_length = None
         self.sent = 0
+        self.upgrade = False
 
     def force_close(self):
         self.must_close = True
@@ -191,11 +193,11 @@ class Response(object):
             elif util.is_hoppish(name):
                 if lname == "connection":
                     # handle websocket
-                    if value.lower().strip() != "upgrade":
-                        continue
-                else:
-                    # ignore hopbyhop headers
-                    continue
+                    if value.lower().strip() == "upgrade":
+                        self.upgrade = True
+
+                # ignore hopbyhop headers
+                continue
             self.headers.append((name.strip(), str(value).strip()))
 
 
@@ -214,9 +216,14 @@ class Response(object):
         return True
 
     def default_headers(self):
-        connection = "keep-alive"
-        if self.should_close():
+        # set the connection header
+        if self.upgrade:
+            connection = "upgrade"
+        elif self.should_close():
             connection = "close"
+        else:
+            connection = "keep-alive"
+
         headers = [
             "HTTP/%s.%s %s\r\n" % (self.req.version[0],
                 self.req.version[1], self.status),
