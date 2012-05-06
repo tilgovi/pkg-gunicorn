@@ -24,7 +24,7 @@ def main():
 
     parser.add_option('-v', '--verbosity', type='int', dest='verbosity',
         default=2, help='Verbosity level; 0=minimal output, 1=normal output' \
-            '2=verbose output, 3=very verbose output')
+            ' 2=verbose output, 3=very verbose output')
 
     options, args = parser.parse_args()
 
@@ -50,7 +50,7 @@ def main():
     except IndexError:
         parser.error("Missing action")
 
-    if action not in ('start', 'stop', 'reload'):
+    if action not in ('start', 'stop', 'restart', 'reload'):
         parser.error("Invalid action: %s" % action)
 
     files = glob.glob(os.path.join(options.conf_dir, '*'))
@@ -101,7 +101,7 @@ def main():
 
     # Kill any renaming pidfiles to prevent the case where we remove or
     # renaming a configuration and it doesn't get stopped or restarted.
-    if action == 'stop':
+    if action == 'stop' and not configs:
         for pidfile in glob.glob(os.path.join(options.pid_dir, '*.pid')):
             log.debug("Stopping extraenous pidfile %s", pidfile)
             subprocess.call((
@@ -197,6 +197,10 @@ class Config(dict):
             '--pidfile', self.pidfile(),
         ))
 
+    def restart(self):
+        self.stop()
+        self.start()
+
     def reload(self):
         try:
             self.check_call((
@@ -208,8 +212,7 @@ class Config(dict):
             ))
         except subprocess.CalledProcessError:
             self.log.debug("Could not reload, so restarting instead")
-            self.stop()
-            self.start()
+            self.restart()
 
 if __name__ == '__main__':
     sys.exit(main())

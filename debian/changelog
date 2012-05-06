@@ -1,8 +1,15 @@
-gunicorn (0.13.4-2~bpo60+1) squeeze-backports; urgency=low
+gunicorn (0.14.2-1) unstable; urgency=low
 
-  * Rebuild for squeeze-backports.
+  * New upstream version.
+  * Add support for "restart" argument to gunicorn-debian.
 
- -- Chris Lamb <lamby@debian.org>  Thu, 19 Jan 2012 15:30:13 +0000
+ -- Chris Lamb <lamby@debian.org>  Tue, 17 Apr 2012 12:07:36 +0100
+
+gunicorn (0.13.4-3) unstable; urgency=low
+
+  * Don't stop *all* configurations when calling "gunicorn-debian stop config".
+
+ -- Chris Lamb <lamby@debian.org>  Fri, 10 Feb 2012 12:49:17 +0000
 
 gunicorn (0.13.4-2) unstable; urgency=low
 

@@ -144,7 +144,7 @@ tmp_upload_dir = None
 #   Logging
 #
 #   logfile - The path to a log file to write to.
-#   
+#
 #       A path string. "-" means log to stdout.
 #
 #   loglevel - The granularity of log output
@@ -154,6 +154,7 @@ tmp_upload_dir = None
 
 logfile = '-'
 loglevel = 'info'
+accesslog = '-'
 
 #
 # Process naming
@@ -196,3 +197,6 @@ def pre_fork(server, worker):
 
 def pre_exec(server):
     server.log.info("Forked child, re-executing.")
+
+def when_ready(server):
+    server.log.info("Server is ready. Spwawning workers")
