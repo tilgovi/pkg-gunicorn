@@ -1,6 +1,8 @@
 gunicorn (0.14.3-1) UNRELEASED; urgency=low
 
   * New upstream release.
+  * Don't use the upstream Makefile for building as it uses virtualenv and
+    starts downloading things.
 
  -- Chris Lamb <lamby@debian.org>  Mon, 21 May 2012 22:00:05 +0100
 
