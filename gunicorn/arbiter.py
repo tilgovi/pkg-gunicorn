@@ -86,8 +86,8 @@ class Arbiter(object):
         self.cfg = app.cfg
         self.log = self.cfg.logger_class(app.cfg)
 
-        if 'GUNICORN_FD' in os.environ:
-            self.log.reopen_files()
+        # reopen files
+        self.log.reopen_files()
 
         self.address = self.cfg.address
         self.num_workers = self.cfg.workers
@@ -455,7 +455,8 @@ class Arbiter(object):
         except SystemExit:
             raise
         except:
-            self.log.exception("Exception in worker process:")
+            self.log.debug("Exception in worker process:\n%s",
+                    traceback.format_exc())
             if not worker.booted:
                 sys.exit(self.WORKER_BOOT_ERROR)
             sys.exit(-1)
@@ -480,7 +481,7 @@ class Arbiter(object):
 
     def kill_workers(self, sig):
         """\
-        Lill all workers with the signal `sig`
+        Kill all workers with the signal `sig`
         :attr sig: `signal.SIG*` value
         """
         for pid in self.WORKERS.keys():
