@@ -127,8 +127,10 @@ class Worker(object):
 
     def handle_error(self, req, client, addr, exc):
         request_start = datetime.now()
+        addr = addr or ('', -1) # unix socket case
         if isinstance(exc, (InvalidRequestLine, InvalidRequestMethod,
-            InvalidHTTPVersion, InvalidHeader, InvalidHeaderName,)):
+            InvalidHTTPVersion, InvalidHeader, InvalidHeaderName,
+            LimitRequestLine, LimitRequestHeaders,)):
 
             status_int = 400
             reason = "Bad Request"
@@ -147,8 +149,8 @@ class Worker(object):
                 mesg = "<p>Error parsing headers: '%s'</p>" % str(exc)
 
             self.log.debug("Invalid request from ip={ip}: {error}"\
-                           "".format(ip=client.getpeername()[0],
-                                     error=repr(exc),
+                           "".format(ip=addr[0],
+                                     error=str(exc),
                                     )
                           )
         else:
@@ -169,13 +171,13 @@ class Worker(object):
             self.log.access(resp, req, environ, request_time)
 
         if self.debug:
-            tb =  traceback.format_exc()
+            tb = traceback.format_exc()
             mesg += "<h2>Traceback:</h2>\n<pre>%s</pre>" % tb
 
         try:
             util.write_error(client, status_int, reason, mesg)
         except:
-            self.log.warning("Failed to send error message.")
+            self.log.debug("Failed to send error message.")
 
     def handle_winch(self, sig, fname):
         # Ignore SIGWINCH in worker. Fixes a crash on OpenBSD.
