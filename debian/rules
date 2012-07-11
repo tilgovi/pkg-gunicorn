@@ -9,6 +9,10 @@ MANPAGES=$(patsubst %.pod,%.1, $(POD_MANPAGES))
 %.1: %.pod
 	pod2man $< $@
 
+override_dh_auto_clean:
+	rm -f Makefile
+	dh_auto_clean
+
 override_dh_auto_build: $(MANPAGES)
 	dh_auto_build
 

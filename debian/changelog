@@ -1,8 +1,17 @@
-gunicorn (0.14.2-1~bpo60+1) squeeze-backports; urgency=low
+gunicorn (0.14.5-1) unstable; urgency=low
 
-  * Rebuild for squeeze-backports.
+  * New upstream release.
 
- -- Chris Lamb <lamby@debian.org>  Tue, 08 May 2012 10:09:53 +0100
+ -- Chris Lamb <lamby@debian.org>  Mon, 02 Jul 2012 10:49:20 +0100
+
+gunicorn (0.14.3-1) unstable; urgency=low
+
+  * New upstream release.
+  * Don't use the upstream Makefile for building as it uses virtualenv and
+    starts downloading things.
+  * Bump Standards-Version to 3.9.3.
+
+ -- Chris Lamb <lamby@debian.org>  Mon, 21 May 2012 22:04:58 +0100
 
 gunicorn (0.14.2-1) unstable; urgency=low
 
