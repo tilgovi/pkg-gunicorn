@@ -11,6 +11,10 @@ MANPAGES=$(patsubst %.pod,%.1, $(POD_MANPAGES))
 
 override_dh_auto_clean:
 	rm -f Makefile
+	rm -f .travis.yml
+	rm -f rpm/install
+	rm -f setup.cfg
+	rm -f tox.ini
 	dh_auto_clean
 
 override_dh_auto_build: $(MANPAGES)
