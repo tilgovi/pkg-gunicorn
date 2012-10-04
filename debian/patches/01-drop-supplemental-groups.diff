@@ -1,0 +1,14 @@
+diff --git a/gunicorn/util.py b/gunicorn/util.py
+index e919d53..d0e5642 100644
+--- a/gunicorn/util.py
++++ b/gunicorn/util.py
+@@ -146,6 +146,9 @@ def set_owner_process(uid,gid):
+             # groups like on osx or fedora
+             os.setgid(-ctypes.c_int(-gid).value)
+ 
++        # Also drop supplemental groups
++        os.setgroups([])
++
+     if uid:
+         os.setuid(uid)
+ 
