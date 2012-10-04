@@ -1,4 +1,4 @@
-gunicorn (0.14.5-3) UNRELEASED; urgency=low
+gunicorn (0.14.5-3) unstable; urgency=medium
 
   * Apply security patch from Vangelis Koukis <vkoukis@grnet.gr> to ensure
     gunicorn drops supplemental groups.
@@ -7,7 +7,7 @@ gunicorn (0.14.5-3) UNRELEASED; urgency=low
     'root' even though we have specifically requested a switch (eg. to
     www-data:www-data)
 
- -- Chris Lamb <lamby@debian.org>  Thu, 04 Oct 2012 20:19:44 +0100
+ -- Chris Lamb <lamby@debian.org>  Thu, 04 Oct 2012 20:22:08 +0100
 
 gunicorn (0.14.5-2) unstable; urgency=low
 
