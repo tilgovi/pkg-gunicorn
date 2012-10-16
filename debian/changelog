@@ -3,6 +3,8 @@ gunicorn (0.14.5-4) UNRELEASED; urgency=low
   * Update setgroups patch so that permission errors are non-fatal, allowing
     gunicorn to be started by a non-root user. Thanks to Matthew Draper
     <matthew@trebex.net> (Closes: #690500)
+  * Fix broken pysupport -> dh_python2 conversion. Thanks to Jakub Wilk
+    (jwilk). (Closes: #690079)
 
  -- Chris Lamb <lamby@debian.org>  Tue, 16 Oct 2012 08:06:46 +0100
 
