@@ -8,6 +8,7 @@ import os
 import signal
 import sys
 import traceback
+import socket
 
 
 from gunicorn import util
@@ -15,6 +16,7 @@ from gunicorn.workers.workertmp import WorkerTmp
 from gunicorn.http.errors import InvalidHeader, InvalidHeaderName, \
 InvalidRequestLine, InvalidRequestMethod, InvalidHTTPVersion, \
 LimitRequestLine, LimitRequestHeaders
+from gunicorn.http.errors import InvalidProxyLine, ForbiddenProxyRequest
 from gunicorn.http.wsgi import default_environ, Response
 
 class Worker(object):
@@ -130,7 +132,8 @@ class Worker(object):
         addr = addr or ('', -1) # unix socket case
         if isinstance(exc, (InvalidRequestLine, InvalidRequestMethod,
             InvalidHTTPVersion, InvalidHeader, InvalidHeaderName,
-            LimitRequestLine, LimitRequestHeaders,)):
+            LimitRequestLine, LimitRequestHeaders,
+            InvalidProxyLine, ForbiddenProxyRequest,)):
 
             status_int = 400
             reason = "Bad Request"
@@ -142,17 +145,29 @@ class Worker(object):
             elif isinstance(exc, InvalidHTTPVersion):
                 mesg = "<p>Invalid HTTP Version '%s'</p>" % str(exc)
             elif isinstance(exc, (InvalidHeaderName, InvalidHeader,)):
-                mesg = "<p>Invalid Header '%s'</p>" % str(exc)
+                mesg = "<p>%s</p>" % str(exc)
+                if not req and hasattr(exc, "req"):
+                    req = exc.req # for access log
             elif isinstance(exc, LimitRequestLine):
                 mesg = "<p>%s</p>" % str(exc)
             elif isinstance(exc, LimitRequestHeaders):
                 mesg = "<p>Error parsing headers: '%s'</p>" % str(exc)
+            elif isinstance(exc, InvalidProxyLine):
+                mesg = "<p>'%s'</p>" % str(exc)
+            elif isinstance(exc, ForbiddenProxyRequest):
+                reason = "Forbidden"
+                mesg = "<p>Request forbidden</p>"
+                status_int = 403
 
             self.log.debug("Invalid request from ip={ip}: {error}"\
                            "".format(ip=addr[0],
                                      error=str(exc),
                                     )
                           )
+        elif isinstance(exc, socket.timeout):
+            status_int = 408
+            reason = "Request Timeout"
+            mesg = "<p>The server timed out handling for the request</p>"
         else:
             self.log.exception("Error handling request")
 

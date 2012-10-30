@@ -18,6 +18,41 @@ except ImportError:
 
 from gunicorn import util
 
+CONFIG_DEFAULTS = dict(
+        version = 1,
+        disable_existing_loggers = False,
+
+        loggers = {
+            "root": { "level": "INFO", "handlers": ["console"] },
+            "gunicorn.error": {
+                "level": "INFO",
+                "handlers": ["console"],
+                "propagate": True,
+                "qualname": "gunicorn.error"
+            }
+        },
+        handlers = {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "generic",
+                "stream": "sys.stdout"
+            }
+        },
+        formatters = {
+            "generic": {
+                "format": "%(asctime)s [%(process)d] [%(levelname)s] %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S",
+                "class": "logging.Formatter"
+            }
+        }
+)
+
+def loggers():
+    """ get list of all loggers """
+    root = logging.root
+    existing = root.manager.loggerDict.keys()
+    return [logging.getLogger(name) for name in existing]
+
 class LazyWriter(object):
 
     """
@@ -119,7 +154,8 @@ class Logger(object):
                     fmt=logging.Formatter(self.access_fmt))
         else:
             if os.path.exists(cfg.logconfig):
-                fileConfig(cfg.logconfig)
+                fileConfig(cfg.logconfig, defaults=CONFIG_DEFAULTS,
+                        disable_existing_loggers=False)
             else:
                 raise RuntimeError("Error: log config '%s' not found" % cfg.logconfig)
 
@@ -164,7 +200,7 @@ class Logger(object):
                 'r': "%s %s %s" % (environ['REQUEST_METHOD'],
                     environ['RAW_URI'], environ["SERVER_PROTOCOL"]),
                 's': status,
-                'b': str(resp.response_length) or '-',
+                'b': resp.response_length and str(resp.response_length) or '-',
                 'f': environ.get('HTTP_REFERER', '-'),
                 'a': environ.get('HTTP_USER_AGENT', '-'),
                 'T': str(request_time.seconds),
@@ -202,7 +238,7 @@ class Logger(object):
 
 
     def reopen_files(self):
-        for log in (self.error_log, self.access_log):
+        for log in loggers():
             for handler in log.handlers:
                 if isinstance(handler, logging.FileHandler):
                     handler.acquire()
@@ -215,7 +251,7 @@ class Logger(object):
                         handler.release()
 
     def close_on_exec(self):
-        for log in (self.error_log, self.access_log):
+        for log in loggers():
             for handler in log.handlers:
                 if isinstance(handler, logging.FileHandler):
                     handler.acquire()

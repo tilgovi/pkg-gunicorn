@@ -212,6 +212,14 @@ def validate_string(val):
         raise TypeError("Not a string: %s" % val)
     return val.strip()
 
+def validate_string_to_list(val):
+    val = validate_string(val)
+
+    if not val:
+        return []
+
+    return [v.strip() for v in val.split(",") if v]
+
 def validate_class(val):
     if inspect.isfunction(val) or inspect.ismethod(val):
         val = val()
@@ -221,9 +229,23 @@ def validate_class(val):
 
 def validate_callable(arity):
     def _validate_callable(val):
+        if isinstance(val, basestring):
+            try:
+                mod_name, obj_name = val.rsplit(".", 1)
+            except ValueError:
+                raise TypeError("Value '%s' is not import string. "
+                                "Format: module[.submodules...].object" % val)
+            try:
+                mod = __import__(mod_name, fromlist=[obj_name])
+                val = getattr(mod, obj_name)
+            except ImportError as e:
+                raise TypeError(str(e))
+            except AttributeError:
+                raise TypeError("Can not load '%s' from '%s'"
+                    "" % (obj_name, mod_name))
         if not callable(val):
             raise TypeError("Value is not callable: %s" % val)
-        if arity != len(inspect.getargspec(val)[0]):
+        if arity != -1 and arity != len(inspect.getargspec(val)[0]):
             raise TypeError("Value must have an arity of: %s" % arity)
         return val
     return _validate_callable
@@ -257,21 +279,13 @@ def validate_group(val):
             raise ConfigError("No such group: '%s'" % val)
 
 def validate_post_request(val):
-
-    # decorator
-    def wrap_post_request(fun):
-        def _wrapped(instance, req, environ):
-            return fun(instance, req)
-        return _wrapped
-
-    if not callable(val):
-        raise TypeError("Value isn't a callable: %s" % val)
+    val = validate_callable(-1)(val)
 
     largs = len(inspect.getargspec(val)[0])
     if largs == 3:
         return val
     elif largs == 2:
-        return wrap_post_request(val)
+        return lambda worker, req, _: val(worker, req)
     else:
         raise TypeError("Value must have an arity of: 3")
 
@@ -654,6 +668,7 @@ class SecureSchemeHeader(Setting):
     validator = validate_dict
     default = {
         "X-FORWARDED-PROTOCOL": "ssl",
+        "X-FORWARDED-PROTO": "https",
         "X-FORWARDED-SSL": "on"
     }
     desc = """\
@@ -680,6 +695,17 @@ class XForwardedFor(Setting):
     desc = """\
         Set the X-Forwarded-For header that identify the originating IP
         address of the client connection to gunicorn via a proxy.
+        """
+
+class ForwardedAllowIPS(Setting):
+    name = "forwarded_allow_ips"
+    section = "Server Mechanics"
+    meta = "STRING"
+    validator = validate_string_to_list
+    default = "127.0.0.1"
+    desc = """\
+        Front-end's IPs from which allowed to handle X-Forwarded-* headers.
+        (comma separate).
         """
 
 class AccessLog(Setting):
@@ -976,4 +1002,39 @@ class WorkerExit(Setting):
 
         The callable needs to accept two instance variables for the Arbiter and
         the just-exited Worker.
+        """
+
+class ProxyProtocol(Setting):
+    name = "proxy_protocol"
+    section = "Server Mechanics"
+    cli = ["--proxy-protocol"]
+    validator = validate_bool
+    default = False
+    action = "store_true"
+    desc = """\
+        Enable detect PROXY protocol (PROXY mode).
+
+        Allow using Http and Proxy together. It's may be useful for work with
+        stunnel as https frondend and gunicorn as http server.
+
+        PROXY protocol: http://haproxy.1wt.eu/download/1.5/doc/proxy-protocol.txt
+
+        Example for stunnel config::
+
+        [https]
+        protocol = proxy
+        accept  = 443
+        connect = 80
+        cert = /etc/ssl/certs/stunnel.pem
+        key = /etc/ssl/certs/stunnel.key
+        """
+
+class ProxyAllowFrom(Setting):
+    name = "proxy_allow_ips"
+    section = "Server Mechanics"
+    cli = ["--proxy-allow-from"]
+    validator = validate_string_to_list
+    default = "127.0.0.1"
+    desc = """\
+        Front-end's IPs from which allowed accept proxy requests (comma separate).
         """

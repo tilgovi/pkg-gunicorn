@@ -28,21 +28,31 @@ class AsyncWorker(base.Worker):
     def handle(self, client, addr):
         req = None
         try:
+            client.settimeout(self.cfg.timeout)
             parser = http.RequestParser(self.cfg, client)
             try:
-                while True:
-                    req = None
-                    with self.timeout_ctx():
-                        req = parser.next()
-                    if not req:
-                        break
+                if not self.cfg.keepalive:
+                    req = parser.next()
                     self.handle_request(req, client, addr)
+                else:
+                    # keepalive loop
+                    while True:
+                        req = None
+                        with self.timeout_ctx():
+                            req = parser.next()
+                        if not req:
+                            break
+                        self.handle_request(req, client, addr)
             except http.errors.NoMoreData, e:
                 self.log.debug("Ignored premature client disconnection. %s", e)
             except StopIteration, e:
                 self.log.debug("Closing connection. %s", e)
+            except socket.error:
+                raise # pass to next try-except level
             except Exception, e:
                 self.handle_error(req, client, addr, e)
+        except socket.timeout as e:
+            self.handle_error(req, client, addr, e)
         except socket.error, e:
             if e[0] not in (errno.EPIPE, errno.ECONNRESET):
                 self.log.exception("Socket error processing request.")
@@ -66,6 +76,10 @@ class AsyncWorker(base.Worker):
                 self.log.info("Autorestarting worker after current request.")
                 resp.force_close()
                 self.alive = False
+
+            if not self.cfg.keepalive:
+                resp.force_close()
+
             respiter = self.wsgi(environ, resp.start_response)
             if respiter == ALREADY_HANDLED:
                 return False

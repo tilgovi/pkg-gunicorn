@@ -6,7 +6,7 @@
 class ParseException(Exception):
     pass
 
-class NoMoreData(ParseException):
+class NoMoreData(IOError):
     def __init__(self, buf=None):
         self.buf = buf
     def __str__(self):
@@ -35,27 +35,28 @@ class InvalidHTTPVersion(ParseException):
         return "Invalid HTTP Version: %s" % self.version
 
 class InvalidHeader(ParseException):
-    def __init__(self, hdr):
+    def __init__(self, hdr, req=None):
         self.hdr = hdr
+        self.req = req
 
     def __str__(self):
-        return "Invalid HTTP Header: %r" % self.hdr
+        return "Invalid HTTP Header: %s" % self.hdr
 
 class InvalidHeaderName(ParseException):
     def __init__(self, hdr):
         self.hdr = hdr
 
     def __str__(self):
-        return "Invalid HTTP header name: %r" % self.hdr
+        return "Invalid HTTP header name: %s" % self.hdr
 
-class InvalidChunkSize(ParseException):
+class InvalidChunkSize(IOError):
     def __init__(self, data):
         self.data = data
 
     def __str__(self):
         return "Invalid chunk size: %r" % self.data
 
-class ChunkMissingTerminator(ParseException):
+class ChunkMissingTerminator(IOError):
     def __init__(self, term):
         self.term = term
 
@@ -77,3 +78,21 @@ class LimitRequestHeaders(ParseException):
 
     def __str__(self):
         return self.msg
+
+
+class InvalidProxyLine(ParseException):
+    def __init__(self, line):
+        self.line = line
+        self.code = 400
+
+    def __str__(self):
+        return "Invalid PROXY line: %s" % self.line
+
+
+class ForbiddenProxyRequest(ParseException):
+    def __init__(self, host):
+        self.host = host
+        self.code = 403
+
+    def __str__(self):
+        return "Proxy request from %s not allowed" % self.host
