@@ -125,18 +125,40 @@ Monitoring
     will fork-exec which creates an unmonitored process and generally just
     confuses the monitor services.
 
-Circus
+Gaffer
 ------
 
-`Circus <http://circus.readthedocs.org/en/latest/index.html>`_ can be
+Using Gafferd and gafferctl
++++++++++++++++++++++++++++
+
+`Gaffer <http://gaffer.readthedocs.org/en/latest/index.html>`_ can be
 used to monitor gunicorn. A simple configuration is::
 
-    [watcher:mywebapp]
+    [process:gunicorn]
     cmd = gunicorn -w 3 test:app
-    working_dir = /Users/benoitc/work/gunicorn/examples
-    send_hup = true
+    cwd = /path/to/project
 
-Then you can easily manage Gunicorn using the `circusctl <http://circus.readthedocs.org/en/latest/commands/#cli>`_ command.
+Then you can easily manage Gunicorn using `gafferctl <http://gaffer.readthedocs.org/en/latest/gafferctl.html>`_.
+
+
+Using a Procfile
+++++++++++++++++
+
+Create a ``Procfile`` in your project::
+
+    gunicorn = gunicorn -w 3 test:app
+
+You can any other applications that should be launched at the same time.
+
+Then you can start your gunicorn application using `gafferp <http://gaffer.readthedocs.org/en/latest/gafferp.html>`_.::
+
+    gafferp start
+
+If gafferd is launched you can also load your Procfile in it directly::
+
+    gafferp load
+
+All your applications will be then supervised by gafferd.
 
 Runit
 -----
@@ -179,6 +201,65 @@ Another useful tool to monitor and control Gunicorn is Supervisor_. A
     autorestart=true
     redirect_stderr=True
 
+Upstart
+-------
+Using gunicorn with upstart is simple. In this example we will run the app "myapp"
+from a virtualenv. All errors will go to /var/log/upstart/myapp.log.
+
+**/etc/init/myapp.conf**::
+
+    description "myapp"
+
+    start on (filesystem)
+    stop on runlevel [016]
+
+    respawn
+    console log
+    setuid nobody
+    setgid nogroup
+    chdir /path/to/app/directory
+
+    exec /path/to/virtualenv/bin/gunicorn myapp:app
+
+Systemd
+-------
+
+A tool that is starting to be common on linux systems is Systemd_. Here
+are configurations files to set the gunicorn launch in systemd and 
+the interfaces on which gunicorn will listen. The sockets will be managed by
+systemd:
+
+**gunicorn.service**::
+
+    [Unit]
+    Description=gunicorn daemon
+
+    [Service]
+    User=urban
+    WorkingDirectory=/home/urban/gunicorn/bin
+    ExecStart=/home/urban/gunicorn/bin/gunicorn --debug --log-level debug test:app
+
+    [Install]
+    WantedBy=multi-user.target
+
+**gunicorn.socket**::
+
+    [Unit]
+    Description=gunicorn socket
+
+    [Socket]
+    ListenStream=/run/unicorn.sock
+    ListenStream=0.0.0.0:9000
+    ListenStream=[::]:8000
+
+    [Install]
+    WantedBy=sockets.target
+
+After running curl http://localhost:9000/ gunicorn should start and you
+should see something like that in logs::
+
+    2013-02-19 23:48:19 [31436] [DEBUG] Socket activation sockets: unix:/run/unicorn.sock,http://0.0.0.0:9000,http://[::]:8000
+
 Logging
 =======
 
@@ -199,3 +280,4 @@ utility::
 .. _`configuration documentation`: http://gunicorn.org/configure.html#logging
 .. _`logging configuration file`: https://github.com/benoitc/gunicorn/blob/master/examples/logging.conf
 .. _Virtualenv: http://pypi.python.org/pypi/virtualenv
+.. _Systemd: http://www.freedesktop.org/wiki/Software/systemd

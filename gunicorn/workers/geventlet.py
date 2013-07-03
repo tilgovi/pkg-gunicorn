@@ -3,10 +3,9 @@
 # This file is part of gunicorn released under the MIT license.
 # See the NOTICE for more information.
 
-from __future__ import with_statement
-
-
+from functools import partial
 import os
+
 try:
     import eventlet
 except ImportError:
@@ -16,12 +15,13 @@ from eventlet.greenio import GreenSocket
 
 from gunicorn.workers.async import AsyncWorker
 
+
 class EventletWorker(AsyncWorker):
 
     @classmethod
     def setup(cls):
         import eventlet
-        if eventlet.version_info < (0,9,7):
+        if eventlet.version_info < (0, 9, 7):
             raise RuntimeError("You need eventlet >= 0.9.7")
         eventlet.monkey_patch(os=False)
 
@@ -32,11 +32,27 @@ class EventletWorker(AsyncWorker):
     def timeout_ctx(self):
         return eventlet.Timeout(self.cfg.keepalive or None, False)
 
+    def handle(self, listener, client, addr):
+        if self.cfg.is_ssl:
+            client = eventlet.wrap_ssl(client, server_side=True,
+                    do_handshake_on_connect=False,
+                    **self.cfg.ssl_options)
+
+        super(EventletWorker, self).handle(listener, client, addr)
+
+        if not self.alive:
+            raise eventlet.StopServe()
+
     def run(self):
-        self.socket = GreenSocket(family_or_realsock=self.socket.sock)
-        self.socket.setblocking(1)
-        self.acceptor = eventlet.spawn(eventlet.serve, self.socket,
-                self.handle, self.worker_connections)
+        acceptors = []
+        for sock in self.sockets:
+            s = GreenSocket(family_or_realsock=sock)
+            s.setblocking(1)
+            hfun = partial(self.handle, s)
+            acceptor = eventlet.spawn(eventlet.serve, s, hfun,
+                    self.worker_connections)
+
+            acceptors.append(acceptor)
 
         while self.alive:
             self.notify()
@@ -47,5 +63,10 @@ class EventletWorker(AsyncWorker):
             eventlet.sleep(1.0)
 
         self.notify()
-        with eventlet.Timeout(self.cfg.graceful_timeout, False):
-            eventlet.kill(self.acceptor, eventlet.StopServe)
+        try:
+            with eventlet.Timeout(self.cfg.graceful_timeout) as t:
+                [a.wait() for a in acceptors]
+        except eventlet.Timeout as te:
+            if te != t:
+                raise
+            [a.kill() for a in acceptors]

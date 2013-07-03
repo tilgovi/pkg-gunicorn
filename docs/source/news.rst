@@ -1,6 +1,72 @@
 Changelog
 =========
 
+0.17.4 / 2013-04-24
+-------------------
+
+- fix unix socket address parsing
+
+0.17.3 / 2013-04-23
+-------------------
+
+- add systemd sockets support
+- add ``python -m gunicorn.app.wsgiapp`` support
+- improve logger class inheritance
+- exit when the config file isn't found
+- add the -R option to enable stdio inheritance in daemon mode
+- don't close file descriptors > 3 in daemon mode
+- improve STDOUT/STDERR logging
+- fix pythonpath option
+- fix pidfile creation on Python 3
+- fix gevent worker exit
+- fix ipv6 detection when the platform isn't supporting it
+
+0.17.2 / 2013-01-07
+-------------------
+
+- optimize readline
+- make imports errors more visiblle when loading an app or a logging
+  class
+- fix tornado worker: don't pass ssl options if there are none
+- fix PEP3333: accept only bytetrings in the response body
+- fix support on CYGWIN platforms
+
+0.17.1 / 2013-01-05
+-------------------
+
+- add syslog facility name setting
+- fix ``--version`` command line argument
+- fix wsgi url_scheme for https
+
+0.17.0 / 2012-12-25
+-------------------
+
+- allows gunicorn to bind to multiple address
+- add SSL support
+- add syslog support
+- add nworkers_changed hook
+- add response arg for post_request hook
+- parse command line with argparse (replace deprecated optparse)
+- fix PWD detection in arbiter
+- miscellenaeous PEP8 fixes
+
+0.16.1 / 2012-11-19
+-------------------
+
+- Fix packaging
+
+0.16.0 / 2012-11-19
+-------------------
+
+- **Added support for Python 3.2 & 3.3**
+- Expose --pythonpath command to all gunicorn commands
+- Honor $PORT environment variable, useful for deployement on heroku
+- Removed support for Python 2.5
+- Make sure we reopen the logs on the console
+- Fix django settings module detection from path
+- Reverted timeout for client socket. Fix issue on blocking issues.
+- Fixed gevent worker
+
 0.15.0 / 2012-10-18
 -------------------
 
@@ -34,8 +100,8 @@ Changelog
 
 - fix logging during daemonisation
 
-0.14.4 / 2012-06-24 
-------------------- 
+0.14.4 / 2012-06-24
+-------------------
 
 - new --graceful-timeout option
 - fix multiple issues with request limit
@@ -48,7 +114,7 @@ Changelog
 - **breaking change**: take the control on graceful reload back.
   graceful can't be overrided anymore using the on_reload function.
 
-0.14.3 / 2012-05-15 
+0.14.3 / 2012-05-15
 -------------------
 
 - improvement: performance of http.body.Body.readline()
@@ -61,7 +127,7 @@ Changelog
 - fix: django1.4 support
 - fix: only load the paster application 1 time
 
-0.14.2 / 2012-03-16 
+0.14.2 / 2012-03-16
 -------------------
 
 - add validate_class validator: allows to use a class or a method to
@@ -71,12 +137,12 @@ Changelog
 - gevent_wsgi is now an alias of gevent_pywsgi
 - Fix gevent_pywsgi worker
 
-0.14.1 / 2012-03-02 
+0.14.1 / 2012-03-02
 -------------------
 
 - fixing source archive, reducing its size
 
-0.14.0 / 2012-02-27  
+0.14.0 / 2012-02-27
 -------------------
 
 - check if Request line is too large: You can now pass the parameter
@@ -104,5 +170,7 @@ History
 .. toctree::
    :titlesonly:
 
+   2013-news
+   2012-news
    2011-news
    2010-news

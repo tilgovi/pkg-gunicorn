@@ -7,8 +7,8 @@ import logging
 import os
 import re
 import sys
-from urllib import unquote
 
+from gunicorn.six import unquote_to_wsgi_str, string_types, binary_type, reraise
 from gunicorn import SERVER_SOFTWARE
 import gunicorn.util as util
 
@@ -24,6 +24,7 @@ except ImportError:
 NORMALIZE_SPACE = re.compile(r'(?:\r\n)?[ \t]+')
 
 log = logging.getLogger(__name__)
+
 
 class FileWrapper:
 
@@ -54,8 +55,9 @@ def default_environ(req, sock, cfg):
         "REQUEST_METHOD": req.method,
         "QUERY_STRING": req.query,
         "RAW_URI": req.uri,
-        "SERVER_PROTOCOL": "HTTP/%s" % ".".join(map(str, req.version))
+        "SERVER_PROTOCOL": "HTTP/%s" % ".".join([str(v) for v in req.version])
     }
+
 
 def proxy_environ(req):
     info = req.proxy_protocol_info
@@ -71,6 +73,7 @@ def proxy_environ(req):
         "PROXY_PORT": str(info["proxy_port"]),
     }
 
+
 def create(req, sock, client, server, cfg):
     resp = Response(req, sock)
 
@@ -80,12 +83,13 @@ def create(req, sock, client, server, cfg):
     # may not qualify the remote addr:
     # http://www.ietf.org/rfc/rfc3875
     forward = client or "127.0.0.1"
-    url_scheme = "http"
+    url_scheme = "https" if cfg.is_ssl else "http"
     script_name = os.environ.get("SCRIPT_NAME", "")
 
     secure_headers = cfg.secure_scheme_headers
     x_forwarded_for_header = cfg.x_forwarded_for_header
-    if client and client[0] not in cfg.forwarded_allow_ips:
+    if '*' not in cfg.forwarded_allow_ips and client\
+            and client[0] not in cfg.forwarded_allow_ips:
         x_forwarded_for_header = None
         secure_headers = {}
 
@@ -93,7 +97,7 @@ def create(req, sock, client, server, cfg):
         if hdr_name == "EXPECT":
             # handle expect
             if hdr_value.lower() == "100-continue":
-                sock.send("HTTP/1.1 100 Continue\r\n\r\n")
+                sock.send(b"HTTP/1.1 100 Continue\r\n\r\n")
         elif x_forwarded_for_header and hdr_name == x_forwarded_for_header:
             forward = hdr_value
         elif secure_headers and (hdr_name.upper() in secure_headers and
@@ -117,7 +121,7 @@ def create(req, sock, client, server, cfg):
 
     environ['wsgi.url_scheme'] = url_scheme
 
-    if isinstance(forward, basestring):
+    if isinstance(forward, string_types):
         # we only took the last one
         # http://en.wikipedia.org/wiki/X-Forwarded-For
         if forward.find(",") >= 0:
@@ -125,7 +129,7 @@ def create(req, sock, client, server, cfg):
 
         # find host and port on ipv6 address
         if '[' in forward and ']' in forward:
-            host =  forward.split(']')[0][1:].lower()
+            host = forward.split(']')[0][1:].lower()
         elif ":" in forward and forward.count(":") == 1:
             host = forward.split(":")[0].lower()
         else:
@@ -144,8 +148,8 @@ def create(req, sock, client, server, cfg):
     environ['REMOTE_ADDR'] = remote[0]
     environ['REMOTE_PORT'] = str(remote[1])
 
-    if isinstance(server, basestring):
-        server =  server.split(":")
+    if isinstance(server, string_types):
+        server = server.split(":")
         if len(server) == 1:
             if url_scheme == "http":
                 server.append("80")
@@ -159,12 +163,13 @@ def create(req, sock, client, server, cfg):
     path_info = req.path
     if script_name:
         path_info = path_info.split(script_name, 1)[1]
-    environ['PATH_INFO'] = unquote(path_info)
+    environ['PATH_INFO'] = unquote_to_wsgi_str(path_info)
     environ['SCRIPT_NAME'] = script_name
 
     environ.update(proxy_environ(req))
 
     return resp, environ
+
 
 class Response(object):
 
@@ -195,7 +200,7 @@ class Response(object):
         if exc_info:
             try:
                 if self.status and self.headers_sent:
-                    raise exc_info[0], exc_info[1], exc_info[2]
+                    reraise(exc_info[0], exc_info[1], exc_info[2])
             finally:
                 exc_info = None
         elif self.status is not None:
@@ -208,7 +213,9 @@ class Response(object):
 
     def process_headers(self, headers):
         for name, value in headers:
-            assert isinstance(name, basestring), "%r is not a string" % name
+            assert isinstance(name, string_types), "%r is not a string" % name
+
+            value = str(value).strip()
             lname = name.lower().strip()
             if lname == "content-length":
                 self.response_length = int(value)
@@ -219,12 +226,11 @@ class Response(object):
                         self.upgrade = True
                 elif lname == "upgrade":
                     if value.lower().strip() == "websocket":
-                        self.headers.append((name.strip(), str(value).strip()))
+                        self.headers.append((name.strip(), value))
 
                 # ignore hopbyhop headers
                 continue
-            self.headers.append((name.strip(), str(value).strip()))
-
+            self.headers.append((name.strip(), value))
 
     def is_chunked(self):
         # Only use chunked responses when the client is
@@ -232,7 +238,7 @@ class Response(object):
         # no Content-Length header set.
         if self.response_length is not None:
             return False
-        elif self.req.version <= (1,0):
+        elif self.req.version <= (1, 0):
             return False
         elif self.status.startswith("304") or self.status.startswith("204"):
             # Do not use chunked responses when the response is guaranteed to
@@ -264,13 +270,16 @@ class Response(object):
         if self.headers_sent:
             return
         tosend = self.default_headers()
-        tosend.extend(["%s: %s\r\n" % (n, v) for n, v in self.headers])
-        util.write(self.sock, "%s\r\n" % "".join(tosend))
+        tosend.extend(["%s: %s\r\n" % (k, v) for k, v in self.headers])
+
+        header_str = "%s\r\n" % "".join(tosend)
+        util.write(self.sock, util.to_bytestring(header_str))
         self.headers_sent = True
 
     def write(self, arg):
         self.send_headers()
-        assert isinstance(arg, basestring), "%r is not a string." % arg
+
+        assert isinstance(arg, binary_type), "%r is not a byte." % arg
 
         arglen = len(arg)
         tosend = arglen
@@ -305,9 +314,9 @@ class Response(object):
                 nbytes -= BLKSIZE
         else:
             sent = 0
-            sent += sendfile(sockno, fileno, offset+sent, nbytes-sent)
+            sent += sendfile(sockno, fileno, offset + sent, nbytes - sent)
             while sent != nbytes:
-                sent += sendfile(sockno, fileno, offset+sent, nbytes-sent)
+                sent += sendfile(sockno, fileno, offset + sent, nbytes - sent)
 
     def write_file(self, respiter):
         if sendfile is not None and \
@@ -328,12 +337,13 @@ class Response(object):
             self.send_headers()
 
             if self.is_chunked():
-                self.sock.sendall("%X\r\n" % nbytes)
+                chunk_size = "%X\r\n" % nbytes
+                self.sock.sendall(chunk_size.encode('utf-8'))
 
             self.sendfile_all(fileno, self.sock.fileno(), fo_offset, nbytes)
 
             if self.is_chunked():
-                self.sock.sendall("\r\n")
+                self.sock.sendall(b"\r\n")
 
             os.lseek(fileno, fd_offset, os.SEEK_SET)
         else:
@@ -344,4 +354,4 @@ class Response(object):
         if not self.headers_sent:
             self.send_headers()
         if self.chunked:
-            util.write_chunk(self.sock, "")
+            util.write_chunk(self.sock, b"")

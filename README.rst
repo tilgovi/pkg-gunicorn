@@ -11,13 +11,17 @@ Feel free to join us in `#gunicorn`_ on freenode_.
 .. image::
     https://secure.travis-ci.org/benoitc/gunicorn.png?branch=master
     :alt: Build Status
-        :target: https://secure.travis-ci.org/benoitc/gunicorn
+    :target: https://travis-ci.org/benoitc/gunicorn
 
+Documentation
+-------------
+
+http://docs.gunicorn.org
 
 Installation
 ------------
 
-Gunicorn requires **Python 2.x >= 2.5**. Python 3.x support is planned.
+Gunicorn requires **Python 2.x >= 2.6** or **Python 3.x >= 3.1**.
 
 Install from sources::
 
@@ -78,7 +82,7 @@ You can see the complete list with the expected::
 gunicorn
 ++++++++
 
-The first and most basic script is used to server 'bare' WSGI applications
+The first and most basic script is used to serve 'bare' WSGI applications
 that don't require a translation layer. Basic usage::
 
     $ gunicorn [OPTIONS] APP_MODULE
@@ -91,11 +95,11 @@ Example with test app::
 
     $ cd examples
     $ gunicorn --workers=2 test:app
-    
+
 gunicorn_django
 +++++++++++++++
 
-You might not have guessed it, but this script is used to server Django
+You might not have guessed it, but this script is used to serve Django
 applications. Basic usage::
 
     $ gunicorn_django [OPTIONS] [SETTINGS_PATH]
@@ -118,7 +122,7 @@ file::
         ...
         "gunicorn",
     )
-  
+
 Then you can run::
 
     python manage.py run_gunicorn
@@ -134,7 +138,7 @@ apologize for the lack of script name creativity. And some usage::
 Simple example::
 
     $ cd yourpasteproject
-    $ gunicorn_paste --workers=2 development.ini
+    $ gunicorn_paster --workers=2 development.ini
 
 If you're wanting to keep on keeping on with the usual paster serve command,
 you can specify the Gunicorn server settings in your configuration file::
@@ -149,6 +153,28 @@ And then as per usual::
     $ cd yourpasteproject
     $ paster serve development.ini workers=2
 
+**Gunicorn paster from script**
+
+If you'd like to run Gunicorn paster from a script instead of the command line (for example: a runapp.py to start a Pyramid app),
+you can use this example to help get you started::
+
+    import os
+    import multiprocessing
+
+    from paste.deploy import appconfig, loadapp
+    from gunicorn.app.pasterapp import paste_server
+
+    if __name__ == "__main__":
+
+        iniFile = 'config:development.ini'
+        port = int(os.environ.get("PORT", 5000))
+        workers = multiprocessing.cpu_count() * 2 + 1
+        worker_class = 'gevent'
+
+        app = loadapp(iniFile, relative_to='.')
+        paste_server(app, host='0.0.0.0', port=port, workers=workers, worker_class=worker_class)
+
+
 LICENSE
 -------
 
@@ -160,10 +186,10 @@ details.
 .. _freenode: http://freenode.net
 .. _Eventlet: http://eventlet.net
 .. _Gevent: http://gevent.org
-.. _FAQ: http://gunicorn.org/faq.html
+.. _FAQ: http://docs.gunicorn.org/en/latest/faq.html
 .. _libev: http://software.schmorp.de/pkg/libev.html
 .. _libevent: http://monkey.org/~provos/libevent
-.. _`production page`: http://gunicorn.org/deployment.html
-.. _`config file`: http://gunicorn.org/configuration.html
+.. _`production page`: http://docs.gunicorn.org/en/latest/deploy.html
+.. _`config file`: http://docs.gunicorn.org/en/latest/configure.html
 .. _setproctitle: http://pypi.python.org/pypi/setproctitle/
 .. _LICENSE: http://github.com/benoitc/gunicorn/blob/master/LICENSE

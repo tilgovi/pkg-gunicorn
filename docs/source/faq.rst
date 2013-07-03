@@ -37,11 +37,6 @@ in tools like ``ps`` and ``top``. This helps for distinguishing the master
 process as well as between masters when running more than one app on a single
 machine. See the proc_name_ setting for more information.
 
-Gunicorn fails to start with upstart
-------------------------------------
-
-Make sure you run gunicorn with ``--daemon`` option.
-
 Why is there no HTTP Keep-Alive?
 --------------------------------
 
@@ -52,7 +47,7 @@ you should use one of the async workers.
 
 .. _slowloris: http://ha.ckers.org/slowloris/
 .. _setproctitle: http://pypi.python.org/pypi/setproctitle
-.. _proc_name: /configure.html#proc-name
+.. _proc_name: configure.html#proc-name
 
 
 Worker Processes
@@ -61,7 +56,7 @@ Worker Processes
 How do I know which type of worker to use?
 ------------------------------------------
 
-Read the design_ page for help on the various worker types.
+Read the :ref:`design` page for help on the various worker types.
 
 What types of workers are there?
 --------------------------------
@@ -87,9 +82,8 @@ To decrease the worker count by one::
 
     $ kill -TTOU $masterpid
 
-.. _design: /design.html
-.. _worker_class: /configure.html#worker-class
-.. _`number of workers`: /design.html#how-many-workers
+.. _worker_class: configure.html#worker-class
+.. _`number of workers`: design.html#how-many-workers
 
 Kernel Parameters
 =================

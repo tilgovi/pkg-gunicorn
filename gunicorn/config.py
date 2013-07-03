@@ -6,22 +6,30 @@
 import copy
 import grp
 import inspect
-import optparse
+try:
+    import argparse
+except ImportError: # python 2.6
+    from . import argparse_compat as argparse
 import os
 import pwd
+import sys
 import textwrap
 import types
 
 from gunicorn import __version__
 from gunicorn.errors import ConfigError
+from gunicorn import six
 from gunicorn import util
 
 KNOWN_SETTINGS = []
+PLATFORM = sys.platform
+
 
 def wrap_method(func):
     def _wrapped(instance, *args, **kwargs):
         return func(*args, **kwargs)
     return _wrapped
+
 
 def make_settings(ignore=None):
     settings = {}
@@ -33,11 +41,13 @@ def make_settings(ignore=None):
         settings[setting.name] = setting.copy()
     return settings
 
+
 class Config(object):
 
-    def __init__(self, usage=None):
+    def __init__(self, usage=None, prog=None):
         self.settings = make_settings()
         self.usage = usage
+        self.prog = prog or os.path.basename(sys.argv[0])
 
     def __getattr__(self, name):
         if name not in self.settings:
@@ -57,16 +67,23 @@ class Config(object):
     def parser(self):
         kwargs = {
             "usage": self.usage,
-            "version": __version__
+            "prog": self.prog
         }
-        parser = optparse.OptionParser(**kwargs)
+        parser = argparse.ArgumentParser(**kwargs)
+        parser.add_argument("-v", "--version",
+                action="version", default=argparse.SUPPRESS,
+                version="%(prog)s (version " +  __version__ + ")\n",
+                help="show program's version number and exit")
+        parser.add_argument("args", nargs="*", help=argparse.SUPPRESS)
 
-        keys = self.settings.keys()
+        keys = list(self.settings)
         def sorter(k):
             return (self.settings[k].section, self.settings[k].order)
-        keys.sort(key=sorter)
+
+        keys = sorted(self.settings, key=self.settings.__getitem__)
         for k in keys:
             self.settings[k].add_option(parser)
+
         return parser
 
     @property
@@ -83,8 +100,8 @@ class Config(object):
 
     @property
     def address(self):
-        bind = self.settings['bind'].get()
-        return util.parse_address(util.to_bytestring(bind))
+        s = self.settings['bind'].get()
+        return [util.parse_address(six.bytes_to_str(bind)) for bind in s]
 
     @property
     def uid(self):
@@ -112,6 +129,21 @@ class Config(object):
             logger_class.install()
         return logger_class
 
+    @property
+    def is_ssl(self):
+        return self.certfile or self.keyfile
+
+    @property
+    def ssl_options(self):
+        opts = {}
+        if self.certfile:
+            opts['certfile'] = self.certfile
+
+        if self.keyfile:
+            opts['keyfile'] = self.keyfile
+
+        return opts
+
 
 class SettingMeta(type):
     def __new__(cls, name, bases, attrs):
@@ -133,9 +165,8 @@ class SettingMeta(type):
         setattr(cls, "desc", desc)
         setattr(cls, "short", desc.splitlines()[0])
 
-class Setting(object):
-    __metaclass__ = SettingMeta
 
+class Setting(object):
     name = None
     value = None
     section = None
@@ -147,6 +178,10 @@ class Setting(object):
     default = None
     short = None
     desc = None
+    nargs = None
+    const = None
+
+
 
     def __init__(self):
         if self.default is not None:
@@ -156,17 +191,31 @@ class Setting(object):
         if not self.cli:
             return
         args = tuple(self.cli)
+
+        help_txt = "%s [%s]" % (self.short, self.default)
+        help_txt = help_txt.replace("%", "%%")
+
         kwargs = {
             "dest": self.name,
-            "metavar": self.meta or None,
             "action": self.action or "store",
-            "type": self.type or "string",
+            "type": self.type or str,
             "default": None,
-            "help": "%s [%s]" % (self.short, self.default)
+            "help": help_txt
         }
+
+        if self.meta is not None:
+            kwargs['metavar'] = self.meta
+
         if kwargs["action"] != "store":
             kwargs.pop("type")
-        parser.add_option(*args, **kwargs)
+
+        if self.nargs is not None:
+            kwargs["nargs"] = self.nargs
+
+        if self.const is not None:
+            kwargs["const"] = self.const
+
+        parser.add_argument(*args, **kwargs)
 
     def copy(self):
         return copy.copy(self)
@@ -175,13 +224,21 @@ class Setting(object):
         return self.value
 
     def set(self, val):
-        assert callable(self.validator), "Invalid validator: %s" % self.name
+        assert six.callable(self.validator), "Invalid validator: %s" % self.name
         self.value = self.validator(val)
 
+    def __lt__(self, other):
+        return (self.section == other.section and
+                self.order < other.order)
+    __cmp__ = __lt__
+
+Setting = SettingMeta('Setting', (Setting,), {})
+
+
 def validate_bool(val):
-    if isinstance(val, types.BooleanType):
+    if isinstance(val, bool):
         return val
-    if not isinstance(val, basestring):
+    if not isinstance(val, six.string_types):
         raise TypeError("Invalid type for casting: %s" % val)
     if val.lower().strip() == "true":
         return True
@@ -190,13 +247,15 @@ def validate_bool(val):
     else:
         raise ValueError("Invalid boolean: %s" % val)
 
+
 def validate_dict(val):
     if not isinstance(val, dict):
         raise TypeError("Value is not a dictionary: %s " % val)
     return val
 
+
 def validate_pos_int(val):
-    if not isinstance(val, (types.IntType, types.LongType)):
+    if not isinstance(val, six.integer_types):
         val = int(val, 0)
     else:
         # Booleans are ints!
@@ -205,12 +264,25 @@ def validate_pos_int(val):
         raise ValueError("Value must be positive: %s" % val)
     return val
 
+
 def validate_string(val):
     if val is None:
         return None
-    if not isinstance(val, basestring):
+    if not isinstance(val, six.string_types):
         raise TypeError("Not a string: %s" % val)
     return val.strip()
+
+
+def validate_list_string(val):
+    if not val:
+        return []
+
+    # legacy syntax
+    if isinstance(val, six.string_types):
+        val = [val]
+
+    return [validate_string(v) for v in val]
+
 
 def validate_string_to_list(val):
     val = validate_string(val)
@@ -220,6 +292,7 @@ def validate_string_to_list(val):
 
     return [v.strip() for v in val.split(",") if v]
 
+
 def validate_class(val):
     if inspect.isfunction(val) or inspect.ismethod(val):
         val = val()
@@ -227,9 +300,10 @@ def validate_class(val):
         return val
     return validate_string(val)
 
+
 def validate_callable(arity):
     def _validate_callable(val):
-        if isinstance(val, basestring):
+        if isinstance(val, six.string_types):
             try:
                 mod_name, obj_name = val.rsplit(".", 1)
             except ValueError:
@@ -243,8 +317,8 @@ def validate_callable(arity):
             except AttributeError:
                 raise TypeError("Can not load '%s' from '%s'"
                     "" % (obj_name, mod_name))
-        if not callable(val):
-            raise TypeError("Value is not callable: %s" % val)
+        if not six.callable(val):
+            raise TypeError("Value is not six.callable: %s" % val)
         if arity != -1 and arity != len(inspect.getargspec(val)[0]):
             raise TypeError("Value must have an arity of: %s" % arity)
         return val
@@ -264,6 +338,7 @@ def validate_user(val):
         except KeyError:
             raise ConfigError("No such user: '%s'" % val)
 
+
 def validate_group(val):
     if val is None:
         return os.getegid()
@@ -278,17 +353,25 @@ def validate_group(val):
         except KeyError:
             raise ConfigError("No such group: '%s'" % val)
 
+
 def validate_post_request(val):
     val = validate_callable(-1)(val)
 
     largs = len(inspect.getargspec(val)[0])
-    if largs == 3:
+    if largs == 4:
         return val
+    elif largs == 3:
+        return lambda worker, req, env, _r: val(worker, req, env)
     elif largs == 2:
-        return lambda worker, req, _: val(worker, req)
+        return lambda worker, req, _e, _r: val(worker, req)
     else:
-        raise TypeError("Value must have an arity of: 3")
+        raise TypeError("Value must have an arity of: 4")
 
+def get_default_config_file():
+    config_path = os.path.join(os.path.abspath(os.getcwd()), 'gunicorn.conf.py')
+    if os.path.exists(config_path):
+        return config_path
+    return None
 
 
 class ConfigFile(Setting):
@@ -307,17 +390,31 @@ class ConfigFile(Setting):
 
 class Bind(Setting):
     name = "bind"
+    action = "append"
     section = "Server Socket"
     cli = ["-b", "--bind"]
     meta = "ADDRESS"
-    validator = validate_string
-    default = "127.0.0.1:8000"
+    validator = validate_list_string
+
+    if 'PORT' in os.environ:
+        default = ['0.0.0.0:{0}'.format(os.environ.get('PORT'))]
+    else:
+        default = ['127.0.0.1:8000']
+
     desc = """\
         The socket to bind.
 
         A string of the form: 'HOST', 'HOST:PORT', 'unix:PATH'. An IP is a valid
         HOST.
+
+        Multiple addresses can be bound. ex.::
+
+            $ gunicorn -b 127.0.0.1:8000 -b [::1]:8000 test:app
+
+        will bind the `test:app` application on localhost both on ipv6
+        and ipv4 interfaces.
         """
+
 
 class Backlog(Setting):
     name = "backlog"
@@ -325,7 +422,7 @@ class Backlog(Setting):
     cli = ["--backlog"]
     meta = "INT"
     validator = validate_pos_int
-    type = "int"
+    type = int
     default = 2048
     desc = """\
         The maximum number of pending connections.
@@ -338,13 +435,14 @@ class Backlog(Setting):
         Must be a positive integer. Generally set in the 64-2048 range.
         """
 
+
 class Workers(Setting):
     name = "workers"
     section = "Worker Processes"
     cli = ["-w", "--workers"]
     meta = "INT"
     validator = validate_pos_int
-    type = "int"
+    type = int
     default = 1
     desc = """\
         The number of worker process for handling requests.
@@ -353,6 +451,7 @@ class Workers(Setting):
         want to vary this a bit to find the best for your particular
         application's work load.
         """
+
 
 class WorkerClass(Setting):
     name = "worker_class"
@@ -364,9 +463,11 @@ class WorkerClass(Setting):
     desc = """\
         The type of workers to use.
 
-        The default class (sync) should handle most 'normal' types of workloads.
-        You'll want to read http://gunicorn.org/design.html for information on
-        when you might want to choose one of the other worker classes.
+        The default class (sync) should handle most 'normal' types of
+        workloads.  You'll want to read
+        http://docs.gunicorn.org/en/latest/design.html for information
+        on when you might want to choose one of the other worker
+        classes.
 
         A string referring to one of the following bundled classes:
 
@@ -382,13 +483,14 @@ class WorkerClass(Setting):
         can also load the gevent class with ``egg:gunicorn#gevent``
         """
 
+
 class WorkerConnections(Setting):
     name = "worker_connections"
     section = "Worker Processes"
     cli = ["--worker-connections"]
     meta = "INT"
     validator = validate_pos_int
-    type = "int"
+    type = int
     default = 1000
     desc = """\
         The maximum number of simultaneous clients.
@@ -396,13 +498,14 @@ class WorkerConnections(Setting):
         This setting only affects the Eventlet and Gevent worker types.
         """
 
+
 class MaxRequests(Setting):
     name = "max_requests"
     section = "Worker Processes"
     cli = ["--max-requests"]
     meta = "INT"
     validator = validate_pos_int
-    type = "int"
+    type = int
     default = 0
     desc = """\
         The maximum number of requests a worker will process before restarting.
@@ -415,13 +518,14 @@ class MaxRequests(Setting):
         restarts are disabled.
         """
 
+
 class Timeout(Setting):
     name = "timeout"
     section = "Worker Processes"
     cli = ["-t", "--timeout"]
     meta = "INT"
     validator = validate_pos_int
-    type = "int"
+    type = int
     default = 30
     desc = """\
         Workers silent for more than this many seconds are killed and restarted.
@@ -432,13 +536,14 @@ class Timeout(Setting):
         is not tied to the length of time required to handle a single request.
         """
 
+
 class GracefulTimeout(Setting):
     name = "graceful_timeout"
     section = "Worker Processes"
     cli = ["--graceful-timeout"]
     meta = "INT"
     validator = validate_pos_int
-    type = "int"
+    type = int
     default = 30
     desc = """\
         Timeout for graceful workers restart.
@@ -448,13 +553,14 @@ class GracefulTimeout(Setting):
         be force killed.
         """
 
+
 class Keepalive(Setting):
     name = "keepalive"
     section = "Worker Processes"
     cli = ["--keep-alive"]
     meta = "INT"
     validator = validate_pos_int
-    type = "int"
+    type = int
     default = 2
     desc = """\
         The number of seconds to wait for requests on a Keep-Alive connection.
@@ -462,13 +568,14 @@ class Keepalive(Setting):
         Generally set in the 1-5 seconds range.
         """
 
+
 class LimitRequestLine(Setting):
     name = "limit_request_line"
     section = "Security"
     cli = ["--limit-request-line"]
     meta = "INT"
     validator = validate_pos_int
-    type = "int"
+    type = int
     default = 4094
     desc = """\
         The maximum size of HTTP request line in bytes.
@@ -485,15 +592,16 @@ class LimitRequestLine(Setting):
         This parameter can be used to prevent any DDOS attack.
         """
 
+
 class LimitRequestFields(Setting):
     name = "limit_request_fields"
     section = "Security"
     cli = ["--limit-request-fields"]
     meta = "INT"
     validator = validate_pos_int
-    type = "int"
+    type = int
     default = 100
-    desc= """\
+    desc = """\
         Limit the number of HTTP headers fields in a request.
 
         This parameter is used to limit the number of headers in a request to
@@ -502,20 +610,22 @@ class LimitRequestFields(Setting):
         32768.
         """
 
+
 class LimitRequestFieldSize(Setting):
     name = "limit_request_field_size"
     section = "Security"
     cli = ["--limit-request-field_size"]
     meta = "INT"
     validator = validate_pos_int
-    type = "int"
+    type = int
     default = 8190
-    desc= """\
+    desc = """\
         Limit the allowed size of an HTTP request header field.
 
         Value is a number from 0 (unlimited) to 8190. to set the limit
         on the allowed size of an HTTP request header field.
         """
+
 
 class Debug(Setting):
     name = "debug"
@@ -531,6 +641,7 @@ class Debug(Setting):
         handling that's sent to clients.
         """
 
+
 class Spew(Setting):
     name = "spew"
     section = "Debugging"
@@ -544,16 +655,18 @@ class Spew(Setting):
         This is the nuclear option.
         """
 
+
 class ConfigCheck(Setting):
     name = "check_config"
     section = "Debugging"
-    cli = ["--check-config",]
+    cli = ["--check-config", ]
     validator = validate_bool
     action = "store_true"
     default = False
     desc = """\
         Check the configuration..
         """
+
 
 class PreloadApp(Setting):
     name = "preload_app"
@@ -571,6 +684,7 @@ class PreloadApp(Setting):
         restarting workers.
         """
 
+
 class Daemon(Setting):
     name = "daemon"
     section = "Server Mechanics"
@@ -585,6 +699,7 @@ class Daemon(Setting):
         background.
         """
 
+
 class Pidfile(Setting):
     name = "pidfile"
     section = "Server Mechanics"
@@ -597,6 +712,7 @@ class Pidfile(Setting):
 
         If not set, no PID file will be written.
         """
+
 
 class User(Setting):
     name = "user"
@@ -613,6 +729,7 @@ class User(Setting):
         the worker process user.
         """
 
+
 class Group(Setting):
     name = "group"
     section = "Server Mechanics"
@@ -628,13 +745,14 @@ class Group(Setting):
         the worker processes group.
         """
 
+
 class Umask(Setting):
     name = "umask"
     section = "Server Mechanics"
     cli = ["-m", "--umask"]
     meta = "INT"
     validator = validate_pos_int
-    type = "int"
+    type = int
     default = 0
     desc = """\
         A bit mask for the file mode on files written by Gunicorn.
@@ -645,6 +763,7 @@ class Umask(Setting):
         int(value, 0) (0 means Python guesses the base, so values like "0",
         "0xFF", "0022" are valid for decimal, hex, and octal representations)
         """
+
 
 class TmpUploadDir(Setting):
     name = "tmp_upload_dir"
@@ -661,6 +780,7 @@ class TmpUploadDir(Setting):
         workers. If not specified, Gunicorn will choose a system generated
         temporary directory.
         """
+
 
 class SecureSchemeHeader(Setting):
     name = "secure_scheme_headers"
@@ -686,6 +806,8 @@ class SecureSchemeHeader(Setting):
         It is important that your front-end proxy configuration ensures that
         the headers defined here can not be passed directly from the client.
         """
+
+
 class XForwardedFor(Setting):
     name = "x_forwarded_for_header"
     section = "Server Mechanics"
@@ -697,6 +819,7 @@ class XForwardedFor(Setting):
         address of the client connection to gunicorn via a proxy.
         """
 
+
 class ForwardedAllowIPS(Setting):
     name = "forwarded_allow_ips"
     section = "Server Mechanics"
@@ -706,7 +829,12 @@ class ForwardedAllowIPS(Setting):
     desc = """\
         Front-end's IPs from which allowed to handle X-Forwarded-* headers.
         (comma separate).
+
+        Set to "*" to disable checking of Front-end IPs (useful for setups
+        where you don't know in advance the IP address of Front-end, but
+        you still trust the environment)
         """
+
 
 class AccessLog(Setting):
     name = "accesslog"
@@ -720,6 +848,7 @@ class AccessLog(Setting):
 
         "-" means log to stderr.
         """
+
 
 class AccessLogFormat(Setting):
     name = "access_log_format"
@@ -752,6 +881,7 @@ class AccessLogFormat(Setting):
         {Header}o: response header
         """
 
+
 class ErrorLog(Setting):
     name = "errorlog"
     section = "Logging"
@@ -764,6 +894,7 @@ class ErrorLog(Setting):
 
         "-" means log to stderr.
         """
+
 
 class Loglevel(Setting):
     name = "loglevel"
@@ -783,6 +914,7 @@ class Loglevel(Setting):
         * error
         * critical
         """
+
 
 class LoggerClass(Setting):
     name = "logger_class"
@@ -817,6 +949,83 @@ Gunicorn uses the standard Python logging module's Configuration
 file format.
 """
 
+class SyslogTo(Setting):
+    name = "syslog_addr"
+    section = "Logging"
+    cli = ["--log-syslog-to"]
+    meta = "SYSLOG_ADDR"
+    validator = validate_string
+
+    if PLATFORM == "darwin":
+        default = "unix:///var/run/syslog"
+    elif PLATFORM in ('freebsd', 'dragonfly', ):
+        default = "unix:///var/run/log"
+    elif PLATFORM == "openbsd":
+        default = "unix:///dev/log"
+    else:
+        default = "udp://localhost:514"
+
+    desc = """\
+    Address to send syslog messages
+    """
+
+
+class Syslog(Setting):
+    name = "syslog"
+    section = "Logging"
+    cli = ["--log-syslog"]
+    validator = validate_bool
+    action = 'store_true'
+    default = False
+    desc = """\
+    Log to syslog.
+    """
+
+
+class SyslogPrefix(Setting):
+    name = "syslog_prefix"
+    section = "Logging"
+    cli = ["--log-syslog-prefix"]
+    meta = "SYSLOG_PREFIX"
+    validator = validate_string
+    default = None
+    desc = """\
+    makes gunicorn use the parameter as program-name in the syslog entries.
+
+    All entries will be prefixed by gunicorn.<prefix>. By default the program
+    name is the name of the process.
+    """
+
+
+class SyslogFacility(Setting):
+    name = "syslog_facility"
+    section = "Logging"
+    cli = ["--log-syslog-facility"]
+    meta = "SYSLOG_FACILITY"
+    validator = validate_string
+    default = "user"
+    desc = """\
+    Syslog facility name
+    """
+
+
+class EnableStdioInheritance(Setting):
+    name = "enable_stdio_inheritance"
+    section = "Logging"
+    cli = ["-R", "--enable-stdio-inheritance"]
+    validator = validate_bool
+    default = False
+    action = "store_true"
+    desc = """\
+    Enable stdio inheritance
+
+    Enable inheritance for stdio file descriptors in daemon mode.
+
+    Note: To disable the python stdout buffering, you can to set the user
+    environment variable ``PYTHONUNBUFFERED`` .
+    """
+
+
 class Procname(Setting):
     name = "proc_name"
     section = "Process Naming"
@@ -834,6 +1043,7 @@ class Procname(Setting):
 
         It defaults to 'gunicorn'.
         """
+
 
 class DefaultProcName(Setting):
     name = "default_proc_name"
@@ -859,9 +1069,10 @@ class DjangoSettings(Setting):
         DJANGO_SETTINGS_MODULE environment variable will be used.
         """
 
-class DjangoPythonPath(Setting):
+
+class PythonPath(Setting):
     name = "pythonpath"
-    section = "Django"
+    section = "Server Mechanics"
     cli = ["--pythonpath"]
     meta = "STRING"
     validator = validate_string
@@ -873,11 +1084,13 @@ class DjangoPythonPath(Setting):
         '/home/djangoprojects/myproject'.
         """
 
+
 class OnStarting(Setting):
     name = "on_starting"
     section = "Server Hooks"
     validator = validate_callable(1)
-    type = "callable"
+    type = six.callable
+
     def on_starting(server):
         pass
     default = staticmethod(on_starting)
@@ -887,11 +1100,13 @@ class OnStarting(Setting):
         The callable needs to accept a single instance variable for the Arbiter.
         """
 
+
 class OnReload(Setting):
     name = "on_reload"
     section = "Server Hooks"
     validator = validate_callable(1)
-    type = "callable"
+    type = six.callable
+
     def on_reload(server):
         pass
     default = staticmethod(on_reload)
@@ -901,11 +1116,13 @@ class OnReload(Setting):
         The callable needs to accept a single instance variable for the Arbiter.
         """
 
+
 class WhenReady(Setting):
     name = "when_ready"
     section = "Server Hooks"
     validator = validate_callable(1)
-    type = "callable"
+    type = six.callable
+
     def when_ready(server):
         pass
     default = staticmethod(when_ready)
@@ -915,11 +1132,13 @@ class WhenReady(Setting):
         The callable needs to accept a single instance variable for the Arbiter.
         """
 
+
 class Prefork(Setting):
     name = "pre_fork"
     section = "Server Hooks"
     validator = validate_callable(2)
-    type = "callable"
+    type = six.callable
+
     def pre_fork(server, worker):
         pass
     default = staticmethod(pre_fork)
@@ -930,11 +1149,13 @@ class Prefork(Setting):
         new Worker.
         """
 
+
 class Postfork(Setting):
     name = "post_fork"
     section = "Server Hooks"
     validator = validate_callable(2)
-    type = "callable"
+    type = six.callable
+
     def post_fork(server, worker):
         pass
     default = staticmethod(post_fork)
@@ -945,11 +1166,31 @@ class Postfork(Setting):
         new Worker.
         """
 
+
+class PostWorkerInit(Setting):
+    name = "post_worker_init"
+    section = "Server Hooks"
+    validator = validate_callable(1)
+    type = six.callable
+
+    def post_worker_init(worker):
+        pass
+
+    default = staticmethod(post_worker_init)
+    desc = """\
+        Called just after a worker has initialized the application.
+
+        The callable needs to accept one instance variable for the initialized
+        Worker.
+        """
+
+
 class PreExec(Setting):
     name = "pre_exec"
     section = "Server Hooks"
     validator = validate_callable(1)
-    type = "callable"
+    type = six.callable
+
     def pre_exec(server):
         pass
     default = staticmethod(pre_exec)
@@ -959,11 +1200,13 @@ class PreExec(Setting):
         The callable needs to accept a single instance variable for the Arbiter.
         """
 
+
 class PreRequest(Setting):
     name = "pre_request"
     section = "Server Hooks"
     validator = validate_callable(2)
-    type = "callable"
+    type = six.callable
+
     def pre_request(worker, req):
         worker.log.debug("%s %s" % (req.method, req.path))
     default = staticmethod(pre_request)
@@ -974,12 +1217,14 @@ class PreRequest(Setting):
         the Request.
         """
 
+
 class PostRequest(Setting):
     name = "post_request"
     section = "Server Hooks"
     validator = validate_post_request
-    type = "callable"
-    def post_request(worker, req, environ):
+    type = six.callable
+
+    def post_request(worker, req, environ, resp):
         pass
     default = staticmethod(post_request)
     desc = """\
@@ -989,11 +1234,13 @@ class PostRequest(Setting):
         the Request.
         """
 
+
 class WorkerExit(Setting):
     name = "worker_exit"
     section = "Server Hooks"
     validator = validate_callable(2)
-    type = "callable"
+    type = six.callable
+
     def worker_exit(server, worker):
         pass
     default = staticmethod(worker_exit)
@@ -1003,6 +1250,27 @@ class WorkerExit(Setting):
         The callable needs to accept two instance variables for the Arbiter and
         the just-exited Worker.
         """
+
+
+class NumWorkersChanged(Setting):
+    name = "nworkers_changed"
+    section = "Server Hooks"
+    validator = validate_callable(3)
+    type = six.callable
+
+    def nworkers_changed(server, new_value, old_value):
+        pass
+    default = staticmethod(nworkers_changed)
+    desc = """\
+        Called just after num_workers has been changed.
+
+        The callable needs to accept an instance variable of the Arbiter and
+        two integers of number of workers after and before change.
+
+        If the number of workers is set for the first time, old_value would be
+        None.
+        """
+
 
 class ProxyProtocol(Setting):
     name = "proxy_protocol"
@@ -1029,6 +1297,7 @@ class ProxyProtocol(Setting):
         key = /etc/ssl/certs/stunnel.key
         """
 
+
 class ProxyAllowFrom(Setting):
     name = "proxy_allow_ips"
     section = "Server Mechanics"
@@ -1038,3 +1307,27 @@ class ProxyAllowFrom(Setting):
     desc = """\
         Front-end's IPs from which allowed accept proxy requests (comma separate).
         """
+
+
+class KeyFile(Setting):
+    name = "keyfile"
+    section = "Ssl"
+    cli = ["--keyfile"]
+    meta = "FILE"
+    validator = validate_string
+    default = None
+    desc = """\
+    SSL key file
+    """
+
+
+class CertFile(Setting):
+    name = "certfile"
+    section = "Ssl"
+    cli = ["--certfile"]
+    meta = "FILE"
+    validator = validate_string
+    default = None
+    desc = """\
+    SSL certificate file
+    """
