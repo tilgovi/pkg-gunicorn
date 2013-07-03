@@ -8,6 +8,8 @@ import sys
 
 from gunicorn import util
 from gunicorn.app.base import Application
+from gunicorn.app import djangoapp
+
 
 class WSGIApplication(Application):
 
@@ -18,15 +20,27 @@ class WSGIApplication(Application):
         self.cfg.set("default_proc_name", args[0])
         self.app_uri = args[0]
 
-        sys.path.insert(0, os.getcwd())
+        cwd = util.getcwd()
+
+        sys.path.insert(0, cwd)
 
     def load(self):
+        try:
+            djangoapp.make_default_env(self.cfg)
+        except RuntimeError:
+            # ignore silently error while loading non django apps.
+            pass
         return util.import_app(self.app_uri)
+
 
 def run():
     """\
-    The ``gunicorn`` command line runner for launcing Gunicorn with
+    The ``gunicorn`` command line runner for launching Gunicorn with
     generic WSGI applications.
     """
     from gunicorn.app.wsgiapp import WSGIApplication
-    WSGIApplication("%prog [OPTIONS] APP_MODULE").run()
+    WSGIApplication("%(prog)s [OPTIONS] APP_MODULE").run()
+
+
+if __name__ == '__main__':
+    run()

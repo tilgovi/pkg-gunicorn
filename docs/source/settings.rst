@@ -14,7 +14,8 @@ config
 ~~~~~~
 
 * ``-c FILE, --config FILE``
-* ``None``
+* ``gunicorn.conf.py`` if the file exists on the current directory otherwise
+  ``None`` is used.
 
 The path to a Gunicorn config file.
 
@@ -482,6 +483,9 @@ The Python path to a Django settings module.
 e.g. 'myproject.settings.main'. If this isn't provided, the
 DJANGO_SETTINGS_MODULE environment variable will be used.
 
+Server Mechanics
+----------------
+
 pythonpath
 ~~~~~~~~~~
 
@@ -557,6 +561,19 @@ Called just after a worker has been forked.
 
 The callable needs to accept two instance variables for the Arbiter and
 new Worker.
+
+post_worker_init
+~~~~~~~~~
+
+*  ::
+
+        def post_worker_init(worker):
+            pass
+
+Called just after a worker has initialized the application.
+
+The callable needs to accept one instance variable for the initialized
+Worker.
 
 pre_exec
 ~~~~~~~~

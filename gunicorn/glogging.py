@@ -6,24 +6,50 @@
 import datetime
 import logging
 logging.Logger.manager.emittedNoHandlerWarning = 1
+from logging.config import fileConfig
 import os
+import socket
 import sys
 import traceback
 import threading
 
-try:
-    from logging.config import fileConfig
-except ImportError:
-    from gunicorn.logging_config import fileConfig
 
 from gunicorn import util
+from gunicorn.six import string_types
+
+
+# syslog facility codes
+SYSLOG_FACILITIES = {
+        "auth":     4,
+        "authpriv": 10,
+        "cron":     9,
+        "daemon":   3,
+        "ftp":      11,
+        "kern":     0,
+        "lpr":      6,
+        "mail":     2,
+        "news":     7,
+        "security": 4,  #  DEPRECATED
+        "syslog":   5,
+        "user":     1,
+        "uucp":     8,
+        "local0":   16,
+        "local1":   17,
+        "local2":   18,
+        "local3":   19,
+        "local4":   20,
+        "local5":   21,
+        "local6":   22,
+        "local7":   23
+        }
+
 
 CONFIG_DEFAULTS = dict(
-        version = 1,
-        disable_existing_loggers = False,
+        version=1,
+        disable_existing_loggers=False,
 
-        loggers = {
-            "root": { "level": "INFO", "handlers": ["console"] },
+        loggers={
+            "root": {"level": "INFO", "handlers": ["console"]},
             "gunicorn.error": {
                 "level": "INFO",
                 "handlers": ["console"],
@@ -31,14 +57,14 @@ CONFIG_DEFAULTS = dict(
                 "qualname": "gunicorn.error"
             }
         },
-        handlers = {
+        handlers={
             "console": {
                 "class": "logging.StreamHandler",
                 "formatter": "generic",
                 "stream": "sys.stdout"
             }
         },
-        formatters = {
+        formatters={
             "generic": {
                 "format": "%(asctime)s [%(process)d] [%(levelname)s] %(message)s",
                 "datefmt": "%Y-%m-%d %H:%M:%S",
@@ -47,47 +73,13 @@ CONFIG_DEFAULTS = dict(
         }
 )
 
+
 def loggers():
     """ get list of all loggers """
     root = logging.root
     existing = root.manager.loggerDict.keys()
     return [logging.getLogger(name) for name in existing]
 
-class LazyWriter(object):
-
-    """
-    File-like object that opens a file lazily when it is first written
-    to.
-    """
-
-    def __init__(self, filename, mode='w'):
-        self.filename = filename
-        self.fileobj = None
-        self.lock = threading.Lock()
-        self.mode = mode
-
-    def open(self):
-        if self.fileobj is None:
-            self.lock.acquire()
-            try:
-                if self.fileobj is None:
-                    self.fileobj = open(self.filename, self.mode)
-            finally:
-                self.lock.release()
-        return self.fileobj
-
-    def write(self, text):
-        fileobj = self.open()
-        fileobj.write(text)
-        fileobj.flush()
-
-    def writelines(self, text):
-        fileobj = self.open()
-        fileobj.writelines(text)
-        fileobj.flush()
-
-    def flush(self):
-        self.open().flush()
 
 class SafeAtoms(dict):
 
@@ -109,6 +101,41 @@ class SafeAtoms(dict):
             return '-'
 
 
+def parse_syslog_address(addr):
+
+    if addr.startswith("unix://"):
+        return (socket.SOCK_STREAM, addr.split("unix://")[1])
+
+    if addr.startswith("udp://"):
+        addr = addr.split("udp://")[1]
+        socktype = socket.SOCK_DGRAM
+    elif addr.startswith("tcp://"):
+        addr = addr.split("tcp://")[1]
+        socktype = socket.SOCK_STREAM
+    else:
+        raise RuntimeError("invalid syslog address")
+
+    if '[' in addr and ']' in addr:
+        host = addr.split(']')[0][1:].lower()
+    elif ':' in addr:
+        host = addr.split(':')[0].lower()
+    elif addr == "":
+        host = "localhost"
+    else:
+        host = addr.lower()
+
+    addr = addr.split(']')[-1]
+    if ":" in addr:
+        port = addr.split(':', 1)[1]
+        if not port.isdigit():
+            raise RuntimeError("%r is not a valid port number." % port)
+        port = int(port)
+    else:
+        port = 514
+
+    return (socktype, (host, port))
+
+
 class Logger(object):
 
     LOG_LEVELS = {
@@ -123,6 +150,9 @@ class Logger(object):
     datefmt = r"%Y-%m-%d %H:%M:%S"
 
     access_fmt = "%(message)s"
+    syslog_fmt = "[%(process)d] %(message)s"
+
+    atoms_wrapper_class = SafeAtoms
 
     def __init__(self, cfg):
         self.error_log = logging.getLogger("gunicorn.error")
@@ -130,6 +160,8 @@ class Logger(object):
         self.error_handlers = []
         self.access_handlers = []
         self.cfg = cfg
+        self.logfile = None
+        self.lock = threading.Lock()
         self.setup(cfg)
 
     def setup(self, cfg):
@@ -138,11 +170,15 @@ class Logger(object):
             self.error_log.setLevel(loglevel)
             self.access_log.setLevel(logging.INFO)
 
-
             if cfg.errorlog != "-":
                 # if an error log file is set redirect stdout & stderr to
                 # this log file.
-                sys.stdout = sys.stderr = LazyWriter(cfg.errorlog, 'a')
+                for stream in sys.stdout, sys.stderr:
+                    stream.flush()
+
+                self.logfile = open(cfg.errorlog, 'a+')
+                os.dup2(self.logfile.fileno(), sys.stdout.fileno())
+                os.dup2(self.logfile.fileno(), sys.stderr.fileno())
 
             # set gunicorn.error handler
             self._set_handler(self.error_log, cfg.errorlog,
@@ -152,13 +188,17 @@ class Logger(object):
             if cfg.accesslog is not None:
                 self._set_handler(self.access_log, cfg.accesslog,
                     fmt=logging.Formatter(self.access_fmt))
+
+            # set syslog handler
+            if cfg.syslog:
+                self._set_syslog_handler(self.error_log, cfg, self.syslog_fmt)
+
         else:
             if os.path.exists(cfg.logconfig):
                 fileConfig(cfg.logconfig, defaults=CONFIG_DEFAULTS,
                         disable_existing_loggers=False)
             else:
                 raise RuntimeError("Error: log config '%s' not found" % cfg.logconfig)
-
 
     def critical(self, msg, *args, **kwargs):
         self.error_log.critical(msg, *args, **kwargs)
@@ -179,34 +219,29 @@ class Logger(object):
         self.error_log.exception(msg, *args)
 
     def log(self, lvl, msg, *args, **kwargs):
-        if isinstance(lvl, basestring):
+        if isinstance(lvl, string_types):
             lvl = self.LOG_LEVELS.get(lvl.lower(), logging.INFO)
         self.error_log.log(lvl, msg, *args, **kwargs)
 
-    def access(self, resp, req, environ, request_time):
-        """ Seee http://httpd.apache.org/docs/2.0/logs.html#combined
-        for format details
+    def atoms(self, resp, req, environ, request_time):
+        """ Gets atoms for log formating.
         """
-
-        if not self.cfg.accesslog and not self.cfg.logconfig:
-            return
-
         status = resp.status.split(None, 1)[0]
         atoms = {
-                'h': environ.get('REMOTE_ADDR', '-'),
-                'l': '-',
-                'u': '-', # would be cool to get username from basic auth header
-                't': self.now(),
-                'r': "%s %s %s" % (environ['REQUEST_METHOD'],
-                    environ['RAW_URI'], environ["SERVER_PROTOCOL"]),
-                's': status,
-                'b': resp.response_length and str(resp.response_length) or '-',
-                'f': environ.get('HTTP_REFERER', '-'),
-                'a': environ.get('HTTP_USER_AGENT', '-'),
-                'T': str(request_time.seconds),
-                'D': str(request_time.microseconds),
-                'p': "<%s>" % os.getpid()
-                }
+            'h': environ.get('REMOTE_ADDR', '-'),
+            'l': '-',
+            'u': '-',  # would be cool to get username from basic auth header
+            't': self.now(),
+            'r': "%s %s %s" % (environ['REQUEST_METHOD'],
+                environ['RAW_URI'], environ["SERVER_PROTOCOL"]),
+            's': status,
+            'b': resp.response_length and str(resp.response_length) or '-',
+            'f': environ.get('HTTP_REFERER', '-'),
+            'a': environ.get('HTTP_USER_AGENT', '-'),
+            'T': str(request_time.seconds),
+            'D': str(request_time.microseconds),
+            'p': "<%s>" % os.getpid()
+        }
 
         # add request headers
         if hasattr(req, 'headers'):
@@ -214,15 +249,26 @@ class Logger(object):
         else:
             req_headers = req
 
-        atoms.update(dict([("{%s}i" % k.lower(),v) for k, v in req_headers]))
+        atoms.update(dict([("{%s}i" % k.lower(), v) for k, v in req_headers]))
 
         # add response headers
-        atoms.update(dict([("{%s}o" % k.lower(),v) for k, v in resp.headers]))
+        atoms.update(dict([("{%s}o" % k.lower(), v) for k, v in resp.headers]))
+
+        return atoms
+
+    def access(self, resp, req, environ, request_time):
+        """ See http://httpd.apache.org/docs/2.0/logs.html#combined
+        for format details
+        """
+
+        if not self.cfg.accesslog and not self.cfg.logconfig:
+            return
 
         # wrap atoms:
         # - make sure atoms will be test case insensitively
         # - if atom doesn't exist replace it by '-'
-        safe_atoms = SafeAtoms(atoms)
+        safe_atoms = self.atoms_wrapper_class(self.atoms(resp, req, environ,
+            request_time))
 
         try:
             self.access_log.info(self.cfg.access_log_format % safe_atoms)
@@ -236,8 +282,21 @@ class Logger(object):
         return '[%02d/%s/%04d:%02d:%02d:%02d]' % (now.day, month,
                 now.year, now.hour, now.minute, now.second)
 
-
     def reopen_files(self):
+        if self.cfg.errorlog != "-":
+            # if an error log file is set redirect stdout & stderr to
+            # this log file.
+            for stream in sys.stdout, sys.stderr:
+                stream.flush()
+
+            with self.lock:
+                if self.logfile is not None:
+                    self.logfile.close()
+
+                self.logfile = open(self.cfg.errorlog, 'a+')
+                os.dup2(self.logfile.fileno(), sys.stdout.fileno())
+                os.dup2(self.logfile.fileno(), sys.stderr.fileno())
+
         for log in loggers():
             for handler in log.handlers:
                 if isinstance(handler, logging.FileHandler):
@@ -261,7 +320,6 @@ class Logger(object):
                     finally:
                         handler.release()
 
-
     def _get_gunicorn_handler(self, log):
         for h in log.handlers:
             if getattr(h, "_gunicorn", False) == True:
@@ -283,3 +341,37 @@ class Logger(object):
         h._gunicorn = True
         log.addHandler(h)
 
+    def _set_syslog_handler(self, log, cfg, fmt):
+        # setup format
+        if not cfg.syslog_prefix:
+            prefix = cfg.proc_name.replace(":", ".")
+        else:
+            prefix = cfg.syslog_prefix
+
+        prefix = "gunicorn.%s" % prefix
+
+        # set format
+        fmt = logging.Formatter(r"%s: %s" % (prefix, fmt))
+
+        # syslog facility
+        try:
+            facility = SYSLOG_FACILITIES[cfg.syslog_facility.lower()]
+        except KeyError:
+            raise RuntimeError("unknown facility name")
+
+        # parse syslog address
+        socktype, addr = parse_syslog_address(cfg.syslog_addr)
+
+        # finally setup the syslog handler
+        if sys.version_info >= (2, 7):
+            h = logging.handlers.SysLogHandler(address=addr,
+                    facility=facility, socktype=socktype)
+        else:
+            # socktype is only supported in 2.7 and sup
+            # fix issue #541
+            h = logging.handlers.SysLogHandler(address=addr,
+                    facility=facility)
+
+        h.setFormatter(fmt)
+        h._gunicorn = True
+        log.addHandler(h)

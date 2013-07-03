@@ -36,7 +36,7 @@ class Pidfile(object):
         if fdir and not os.path.isdir(fdir):
             raise RuntimeError("%s doesn't exist. Can't create pidfile." % fdir)
         fd, fname = tempfile.mkstemp(dir=fdir)
-        os.write(fd, "%s\n" % self.pid)
+        os.write(fd, ("%s\n" % self.pid).encode('utf-8'))
         if self.fname:
             os.rename(fname, self.fname)
         else:
@@ -55,7 +55,7 @@ class Pidfile(object):
         """ delete pidfile"""
         try:
             with open(self.fname, "r") as f:
-                pid1 =  int(f.read() or 0)
+                pid1 = int(f.read() or 0)
 
             if pid1 == self.pid:
                 os.unlink(self.fname)
@@ -76,11 +76,11 @@ class Pidfile(object):
                 try:
                     os.kill(wpid, 0)
                     return wpid
-                except OSError, e:
-                    if e[0] == errno.ESRCH:
+                except OSError as e:
+                    if e.args[0] == errno.ESRCH:
                         return
                     raise
-        except IOError, e:
-            if e[0] == errno.ENOENT:
+        except IOError as e:
+            if e.args[0] == errno.ENOENT:
                 return
             raise

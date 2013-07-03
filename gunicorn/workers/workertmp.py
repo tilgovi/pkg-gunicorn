@@ -4,9 +4,16 @@
 # See the NOTICE for more information.
 
 import os
+import platform
 import tempfile
 
 from gunicorn import util
+
+PLATFORM = platform.system()
+if PLATFORM.startswith('CYGWIN'):
+    IS_CYGWIN = True
+else:
+    IS_CYGWIN = False
 
 class WorkerTmp(object):
 
@@ -20,7 +27,8 @@ class WorkerTmp(object):
 
         # unlink the file so we don't leak tempory files
         try:
-            os.unlink(name)
+            if not IS_CYGWIN:
+                util.unlink(name)
             self._tmp = os.fdopen(fd, 'w+b', 1)
         except:
             os.close(fd)
@@ -30,7 +38,7 @@ class WorkerTmp(object):
 
     def notify(self):
         try:
-            self.spinner = (self.spinner+1) % 2
+            self.spinner = (self.spinner + 1) % 2
             os.fchmod(self._tmp.fileno(), self.spinner)
         except AttributeError:
             # python < 2.6
